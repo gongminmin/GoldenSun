@@ -727,7 +727,8 @@ namespace
 
                 auto const view = XMMatrixLookAtLH(eye_, look_at_, up_);
                 auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
-                XMStoreFloat4x4(&mapped_constant_data_[frame_index_].constants.inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
+                XMStoreFloat4x4(
+                    &mapped_constant_data_[frame_index_].constants.inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
                 mapped_constant_data_[frame_index_].constants.light_pos = light_pos_;
                 mapped_constant_data_[frame_index_].constants.light_color = light_color_;
@@ -1201,8 +1202,7 @@ namespace
         // We'll allocate space for several of these and they will need to be padded for alignment.
         static_assert(sizeof(SceneConstantBuffer) < D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, "Checking the size here.");
 
-        union AlignedSceneConstantBuffer
-        {
+        union AlignedSceneConstantBuffer {
             SceneConstantBuffer constants;
             uint8_t alignment_padding[D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT];
         };

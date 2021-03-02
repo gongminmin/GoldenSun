@@ -6,6 +6,30 @@ resources:
   fetchDepth: 1
 
 stages:
+- stage: ClangFormat
+  jobs:
+  - job: ClangFormat
+    pool:
+      vmImage: Ubuntu-18.04
+
+    variables:
+      CC: gcc
+      CXX: g++
+
+    steps:
+    - bash: |
+        sudo apt-get install clang-format
+      displayName: 'Install'
+    - script: |
+        mkdir -p Build/clang-format
+        cd Build/clang-format
+        cmake -G "Unix Makefiles" -Dgolden_sun_clang_format=ON ../../
+        make clang_format
+        cd ../../
+        git diff --exit-code $(Build.SourceVersion)
+      failOnStderr: true
+      displayName: 'Clang-Format'
+
 - stage: Build
   jobs:
   - job: Build
