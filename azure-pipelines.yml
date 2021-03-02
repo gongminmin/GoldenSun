@@ -1,0 +1,50 @@
+variables:
+  platform: x64
+
+resources:
+- repo: self
+  fetchDepth: 1
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    strategy:
+      matrix:
+        Windows_vc142_Debug:
+          vmImage: windows-2019
+          project: vs2019
+          compiler: vc142
+          configuration: Debug
+          id: 'vc142_win_$(platform)_$(configuration)'
+
+        Windows_vc142_Release:
+          vmImage: windows-2019
+          project: vs2019
+          compiler: vc142
+          configuration: Release
+          id: 'vc142_win_$(platform)_$(configuration)'
+
+    pool:
+      vmImage: $(vmImage)
+
+    steps:
+      - script: |
+          git config --global user.email "dummy@example.com"
+          git config --global user.name "Dummy Name"
+          # Reset the repo to restore changes in External
+          git reset --hard
+        displayName: 'Config git'
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.x'
+          addToPath: true
+          architecture: 'x64'
+  
+      - task: PythonScript@0
+        displayName: 'Build'
+        inputs:
+          scriptPath: Build.py
+          arguments: '$(project) $(compiler) $(platform) $(configuration)'
+

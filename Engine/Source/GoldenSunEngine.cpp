@@ -23,7 +23,7 @@ DEFINE_UUID_OF(ID3D12CommandAllocator);
 DEFINE_UUID_OF(ID3D12DescriptorHeap);
 DEFINE_UUID_OF(ID3D12Device);
 DEFINE_UUID_OF(ID3D12Fence);
-DEFINE_UUID_OF(ID3D12GraphicsCommandList5);
+DEFINE_UUID_OF(ID3D12GraphicsCommandList4);
 DEFINE_UUID_OF(ID3D12Resource);
 DEFINE_UUID_OF(ID3D12RootSignature);
 DEFINE_UUID_OF(ID3D12StateObject);
@@ -644,7 +644,7 @@ namespace
             }
 
             TIFHR(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_allocators_[0].Get(), nullptr,
-                UuidOf<ID3D12GraphicsCommandList5>(), cmd_list_.PutVoid()));
+                UuidOf<ID3D12GraphicsCommandList4>(), cmd_list_.PutVoid()));
             TIFHR(cmd_list_->Close());
 
             TIFHR(device_->CreateFence(fence_vals_[frame_index_], D3D12_FENCE_FLAG_NONE, UuidOf<ID3D12Fence>(), fence_.PutVoid()));
@@ -718,7 +718,7 @@ namespace
 
         void Render(ID3D12GraphicsCommandList* cmd_list) override
         {
-            ComPtr<ID3D12GraphicsCommandList5> dxr_cmd_list = ComPtr<ID3D12CommandList>(cmd_list).As<ID3D12GraphicsCommandList5>();
+            ComPtr<ID3D12GraphicsCommandList4> dxr_cmd_list = ComPtr<ID3D12CommandList>(cmd_list).As<ID3D12GraphicsCommandList4>();
 
             dxr_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
@@ -1184,7 +1184,7 @@ namespace
     private:
         ComPtr<ID3D12Device5> device_;
         ComPtr<ID3D12CommandQueue> cmd_queue_;
-        ComPtr<ID3D12GraphicsCommandList5> cmd_list_;
+        ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
         ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];
         ComPtr<ID3D12StateObject> state_obj_;
 
