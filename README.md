@@ -27,7 +27,7 @@ GoldenSun is a GPU path tracer. It uses hardware ray tracing APIs to do the trac
 As an open-source project, GoldenSun benefits greatly from both the volunteer work of helpful developers and good bug reports made by users. 
 
 ### Bug Reports & Feature Requests
-If you've noticed a bug or have an idea that you'd like to see come real, why not work on it? Bug reports and feature requests are typically submitted to the issue tracker https://github.com/gongminmin/GoldenSun/issues.
+If you've noticed a bug or have an idea that you'd like to see come real, why not work on it? Bug reports and feature requests are typically submitted to the [issue tracker](https://github.com/gongminmin/GoldenSun/issues).
 
 ## Why this name?
 The name GoldenSun is inspired by the lyrics of the famous song Do-Re-Mi, Re/Ray: a drop of golden sun. Here we have a lot of rays in the process. So, yeah, golden sun.
