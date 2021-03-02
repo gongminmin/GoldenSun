@@ -76,11 +76,12 @@ class BuildInfo:
 		if "win" == target_platform:
 			self.is_windows = True
 
+		if self.is_windows:
+			program_files_folder = self.FindProgramFilesFolder()
+
 		if compiler is None:
 			if project is None:
 				if self.is_windows:
-					program_files_folder = self.FindProgramFilesFolder()
-
 					if self.FindVS2019Folder(program_files_folder) is not None:
 						project = "vs2019"
 						compiler = "vc142"
@@ -90,39 +91,31 @@ class BuildInfo:
 				if project == "vs2019":
 					compiler = "vc142"
 
-		if self.is_windows:
-			program_files_folder = self.FindProgramFilesFolder()
-
-			if "vc142" == compiler:
-				if project == "vs2019":
-					try_folder = self.FindVS2019Folder(program_files_folder)
-					if try_folder is not None:
-						compiler_root = try_folder
-						vcvarsall_path = "VCVARSALL.BAT"
-						vcvarsall_options = ""
-					else:
-						LogError("Could NOT find vc142 compiler toolset for VS2019.\n")
-				else:
-					LogError("Could NOT find vc142 compiler.\n")
-			elif "clangcl" == compiler:
-				if project == "vs2019":
-					try_folder = self.FindVS2019Folder(program_files_folder)
-					if try_folder is not None:
-						compiler_root = try_folder
-						vcvarsall_path = "VCVARSALL.BAT"
-						vcvarsall_options = ""
-					else:
-						LogError("Could NOT find clang-cl compiler toolset for VS2019.\n")
-				else:
-					LogError("Could NOT find clang-cl compiler.\n")
-		else:
-			compiler_root = ""
-
 		if project is None:
 			if "vc142" == compiler:
 				project = "vs2019"
 			else:
 				project = "make"
+
+		if self.is_windows:
+			if "vc142" == compiler:
+				try_folder = self.FindVS2019Folder(program_files_folder)
+				if try_folder is not None:
+					compiler_root = try_folder
+					vcvarsall_path = "VCVARSALL.BAT"
+					vcvarsall_options = ""
+				else:
+					LogError("Could NOT find vc142 compiler toolset for VS2019.\n")
+			elif "clangcl" == compiler:
+				try_folder = self.FindVS2019Folder(program_files_folder)
+				if try_folder is not None:
+					compiler_root = try_folder
+					vcvarsall_path = "VCVARSALL.BAT"
+					vcvarsall_options = ""
+				else:
+					LogError("Could NOT find clang-cl compiler toolset for VS2019.\n")
+		else:
+			compiler_root = ""
 
 		if archs is None:
 			archs = ("x64", )
@@ -130,6 +123,7 @@ class BuildInfo:
 		if cfg is None:
 			cfg = ("Debug", "RelWithDebInfo")
 
+		multi_config = False
 		compilers = []
 		if "vs2019" == project:
 			self.vs_version = 16
@@ -141,8 +135,24 @@ class BuildInfo:
 				compiler_version = self.RetrieveClangVersion(compiler_root + "../../Tools/Llvm/bin/")
 			else:
 				LogError("Wrong combination of project %s and compiler %s.\n" % (project, compiler))
+			multi_config = True
 			for arch in archs:
 				compilers.append(CompilerInfo(self, arch, "Visual Studio 16", compiler_root, vcvarsall_path, vcvarsall_options))
+		elif ("make" == project) or ("ninja" == project):
+			if "ninja" == project:
+				gen_name = "Ninja"
+			else:
+				if "win" == host_platform:
+					gen_name = "MinGW Makefiles"
+				else:
+					gen_name = "Unix Makefiles"
+			if "vc142" == compiler:
+				compiler_name = "vc"
+				compiler_version = 142
+				for arch in archs:
+					compilers.append(CompilerInfo(self, arch, gen_name, compiler_root, vcvarsall_path, vcvarsall_options))
+			else:
+				LogError("Wrong combination of project %s and compiler %s.\n" % (project, compiler))
 		else:
 			compiler_name = ""
 			compiler_version = 0
@@ -154,6 +164,7 @@ class BuildInfo:
 		self.project_type = project
 		self.compiler_name = compiler_name
 		self.compiler_version = compiler_version
+		self.multi_config = multi_config
 		self.compilers = compilers
 		self.archs = archs
 		self.cfg = cfg
@@ -181,6 +192,16 @@ class BuildInfo:
 		else:
 			batch_cmd.AddCommand("%s %s" % (make_name, make_options))
 			batch_cmd.AddCommand('if [ $? -ne 0 ]; then exit 1; fi')
+
+	def RetrieveClangVersion(self, path = ""):
+		clang_path = path + "clang"
+		clang_ver = subprocess.check_output([clang_path, "--version"]).decode()
+		clang_ver_tokens = clang_ver.split()
+		for i in range(0, len(clang_ver_tokens)):
+			if "version" == clang_ver_tokens[i]:
+				clang_ver_components = clang_ver_tokens[i + 1].split(".")
+				break
+		return int(clang_ver_components[0] + clang_ver_components[1])
 
 	def FindProgramFilesFolder(self):
 		env = os.environ
@@ -294,7 +315,10 @@ def BuildProjects(name, build_path, build_info, compiler_info, project_list, add
 			toolset_name += " v%s," % build_info.compiler_version
 			toolset_name += "host=x64"
 
-	if build_info.project_type.startswith("vs"):
+	if (build_info.compiler_name != "vc") or (build_info.project_type == "ninja"):
+		additional_options += " -Dgolden_sun_arch_name:STRING=\"%s\"" % compiler_info.arch
+
+	if build_info.compiler_name == "vc":
 		if "x64" == compiler_info.arch:
 			vc_option = "amd64"
 			vc_arch = "x64"
@@ -303,56 +327,116 @@ def BuildProjects(name, build_path, build_info, compiler_info, project_list, add
 		if len(compiler_info.vcvarsall_options) > 0:
 			vc_option += " %s" % compiler_info.vcvarsall_options
 
-	if build_info.project_type.startswith("vs"):
-		additional_options += " -A %s" % vc_arch
-		if build_info.compiler_name == "clangcl":
-			additional_options += " -DClangCL_Path=\"" + compiler_info.compiler_root + "../../Tools/Llvm/bin/\""
-
-	build_dir = "%s/Build/%s" % (build_path, build_info.GetBuildDir(compiler_info.arch))
-
-	print("Building %s..." % name)
-	sys.stdout.flush()
-
-	if not os.path.exists(build_dir):
-		os.makedirs(build_dir)
-
-	build_dir = os.path.abspath(build_dir)
-	os.chdir(build_dir)
-
-	cmake_cmd = BatchCommand(build_info.host_platform)
-	new_path = sys.exec_prefix
-	if len(compiler_info.compiler_root) > 0:
-		new_path += ";" + compiler_info.compiler_root
-	if "win" == build_info.host_platform:
-		cmake_cmd.AddCommand('@SET PATH=%s;%%PATH%%' % new_path)
+	if build_info.multi_config:
 		if build_info.project_type.startswith("vs"):
-			cmake_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
-			cmake_cmd.AddCommand('@CD /d "%s"' % build_dir)
-	else:
-		cmake_cmd.AddCommand('export PATH=$PATH:%s' % new_path)
-	cmake_cmd.AddCommand('cmake -G "%s" %s %s ../../' % (compiler_info.generator, toolset_name, additional_options))
-	if cmake_cmd.Execute() != 0:
-		LogWarning("Config %s failed, retry 1...\n" % name)
-		if cmake_cmd.Execute() != 0:
-			LogWarning("Config %s failed, retry 2...\n" % name)
-			if cmake_cmd.Execute() != 0:
-				LogError("Config %s failed.\n" % name)
+			additional_options += " -A %s" % vc_arch
+			if build_info.compiler_name == "clangcl":
+				additional_options += " -DClangCL_Path=\"" + compiler_info.compiler_root + "../../Tools/Llvm/bin/\""
 
-	build_cmd = BatchCommand(build_info.host_platform)
-	if build_info.project_type.startswith("vs"):
-		build_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
-		build_cmd.AddCommand('@CD /d "%s"' % build_dir)
-	for config in build_info.cfg:
-		for target in project_list:
+		build_dir = "%s/Build/%s" % (build_path, build_info.GetBuildDir(compiler_info.arch))
+
+		print("Building %s..." % name)
+		sys.stdout.flush()
+
+		if not os.path.exists(build_dir):
+			os.makedirs(build_dir)
+
+		build_dir = os.path.abspath(build_dir)
+		os.chdir(build_dir)
+
+		cmake_cmd = BatchCommand(build_info.host_platform)
+		new_path = sys.exec_prefix
+		if len(compiler_info.compiler_root) > 0:
+			new_path += ";" + compiler_info.compiler_root
+		if "win" == build_info.host_platform:
+			cmake_cmd.AddCommand('@SET PATH=%s;%%PATH%%' % new_path)
 			if build_info.project_type.startswith("vs"):
-				build_info.MSBuildAddBuildCommand(build_cmd, name, target, config, vc_arch)
-	if build_cmd.Execute() != 0:
-		LogError("Build %s failed.\n" % name)
+				cmake_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
+				cmake_cmd.AddCommand('@CD /d "%s"' % build_dir)
+		else:
+			cmake_cmd.AddCommand('export PATH=$PATH:%s' % new_path)
+		cmake_cmd.AddCommand('cmake -G "%s" %s %s ../../' % (compiler_info.generator, toolset_name, additional_options))
+		if cmake_cmd.Execute() != 0:
+			LogWarning("Config %s failed, retry 1...\n" % name)
+			if cmake_cmd.Execute() != 0:
+				LogWarning("Config %s failed, retry 2...\n" % name)
+				if cmake_cmd.Execute() != 0:
+					LogError("Config %s failed.\n" % name)
 
-	os.chdir(curdir)
+		build_cmd = BatchCommand(build_info.host_platform)
+		if build_info.project_type.startswith("vs"):
+			build_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
+			build_cmd.AddCommand('@CD /d "%s"' % build_dir)
+		for config in build_info.cfg:
+			for target in project_list:
+				if build_info.project_type.startswith("vs"):
+					build_info.MSBuildAddBuildCommand(build_cmd, name, target, config, vc_arch)
+		if build_cmd.Execute() != 0:
+			LogError("Build %s failed.\n" % name)
 
-	print("")
-	sys.stdout.flush()
+		os.chdir(curdir)
+
+		print("")
+		sys.stdout.flush()
+	else:
+		if build_info.project_type == "ninja":
+			make_name = "ninja"
+		else:
+			if "win" == build_info.host_platform:
+				make_name = "mingw32-make.exe"
+			else:
+				make_name = "make"
+
+		for config in build_info.cfg:
+			build_dir = "%s/Build/%s" % (build_path, build_info.GetBuildDir(compiler_info.arch, config))
+
+			print("Building %s %s..." % (name, config))
+			sys.stdout.flush()
+
+			if not os.path.exists(build_dir):
+				os.makedirs(build_dir)
+				if ("clang" == build_info.compiler_name):
+					env = os.environ
+					if not ("CC" in env):
+						additional_options += " -DCMAKE_C_COMPILER=clang"
+					if not ("CXX" in env):
+						additional_options += " -DCMAKE_CXX_COMPILER=clang++"
+
+			build_dir = os.path.abspath(build_dir)
+			os.chdir(build_dir)
+
+			additional_options += " -DCMAKE_BUILD_TYPE:STRING=\"%s\"" % config
+
+			cmake_cmd = BatchCommand(build_info.host_platform)
+			new_path = sys.exec_prefix
+			if len(compiler_info.compiler_root) > 0:
+				new_path += ";" + compiler_info.compiler_root
+			if build_info.compiler_name == "vc":
+				cmake_cmd.AddCommand('@SET PATH=%s;%%PATH%%' % new_path)
+				cmake_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
+				cmake_cmd.AddCommand('@CD /d "%s"' % build_dir)
+				additional_options += " -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe"
+			cmake_cmd.AddCommand('cmake -G "%s" %s ../../' % (compiler_info.generator, additional_options))
+			if cmake_cmd.Execute() != 0:
+				LogWarning("Config %s failed, retry 1...\n" % name)
+				if cmake_cmd.Execute() != 0:
+					LogWarning("Config %s failed, retry 2...\n" % name)
+					if cmake_cmd.Execute() != 0:
+						LogError("Config %s failed.\n" % name)
+
+			build_cmd = BatchCommand(build_info.host_platform)
+			if build_info.compiler_name == "vc":
+				build_cmd.AddCommand('@CALL "%s%s" %s' % (compiler_info.compiler_root, compiler_info.vcvarsall_path, vc_option))
+				build_cmd.AddCommand('@CD /d "%s"' % build_dir)
+			for target in project_list:
+				build_info.MakeAddBuildCommand(build_cmd, make_name, target)
+			if build_cmd.Execute() != 0:
+				LogError("Build %s failed.\n" % name)
+
+			os.chdir(curdir)
+
+			print("")
+			sys.stdout.flush()
 
 if __name__ == "__main__":
 	build_info = BuildInfo.FromArgv(sys.argv)
