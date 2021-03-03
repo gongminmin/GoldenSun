@@ -584,6 +584,11 @@ namespace
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
 
+    template <typename T>
+    struct ConstantBufferWrapper : T
+    {
+        uint8_t padding[Align<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(sizeof(T)) - sizeof(T)];
+    };
 
     struct SceneConstantBuffer
     {
@@ -723,15 +728,15 @@ namespace
             dxr_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
-                XMStoreFloat4(&mapped_constant_data_[frame_index_].constants.camera_pos, eye_);
+                XMStoreFloat4(&mapped_constant_data_[frame_index_].camera_pos, eye_);
 
                 auto const view = XMMatrixLookAtLH(eye_, look_at_, up_);
                 auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
                 XMStoreFloat4x4(
-                    &mapped_constant_data_[frame_index_].constants.inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
+                    &mapped_constant_data_[frame_index_].inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
-                mapped_constant_data_[frame_index_].constants.light_pos = light_pos_;
-                mapped_constant_data_[frame_index_].constants.light_color = light_color_;
+                mapped_constant_data_[frame_index_].light_pos = light_pos_;
+                mapped_constant_data_[frame_index_].light_color = light_color_;
 
                 auto const cb_gpu_addr = per_frame_constants_->GetGPUVirtualAddress() + frame_index_ * sizeof(mapped_constant_data_[0]);
                 dxr_cmd_list->SetComputeRootConstantBufferView(ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), cb_gpu_addr);
@@ -780,7 +785,7 @@ namespace
             D3D12_HEAP_PROPERTIES const upload_heap_prop = {
                 D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
-            D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, FrameCount * sizeof(AlignedSceneConstantBuffer), 1,
+            D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, FrameCount * sizeof(mapped_constant_data_[0]), 1,
                 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
             TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
                 nullptr, UuidOf<ID3D12Resource>(), per_frame_constants_.PutVoid()));
@@ -977,18 +982,9 @@ namespace
 
             ComPtr<ID3D12Resource> scratch_resource;
             {
-                D3D12_RESOURCE_DESC const buffer_desc = {
-                    D3D12_RESOURCE_DIMENSION_BUFFER,
-                    0,
-                    std::max(top_level_prebuild_info.ScratchDataSizeInBytes, bottom_level_prebuild_info.ScratchDataSizeInBytes),
-                    1,
-                    1,
-                    1,
-                    DXGI_FORMAT_UNKNOWN,
-                    {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                };
+                D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0,
+                    std::max(top_level_prebuild_info.ScratchDataSizeInBytes, bottom_level_prebuild_info.ScratchDataSizeInBytes), 1, 1, 1,
+                    DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
                 TIFHR(device_->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, UuidOf<ID3D12Resource>(), scratch_resource.PutVoid()));
                 scratch_resource->SetName(L"ScratchResource");
@@ -1038,24 +1034,9 @@ namespace
                 instance_desc.AccelerationStructure = bottom_level_acceleration_structure_->GetGPUVirtualAddress();
 
                 D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                    D3D12_HEAP_TYPE_UPLOAD,
-                    D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
-                    D3D12_MEMORY_POOL_UNKNOWN,
-                    1,
-                    1,
-                };
-                D3D12_RESOURCE_DESC const buffer_desc = {
-                    D3D12_RESOURCE_DIMENSION_BUFFER,
-                    0,
-                    sizeof(instance_desc),
-                    1,
-                    1,
-                    1,
-                    DXGI_FORMAT_UNKNOWN,
-                    {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                    D3D12_RESOURCE_FLAG_NONE,
-                };
+                    D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
+                D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, sizeof(instance_desc), 1, 1, 1,
+                    DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
                 TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
                     D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, UuidOf<ID3D12Resource>(), instance_descs_buffer.PutVoid()));
                 instance_descs_buffer->SetName(L"InstanceDescs");
@@ -1199,14 +1180,7 @@ namespace
         float aspect_ratio_ = 0;
         DXGI_FORMAT format_ = DXGI_FORMAT_UNKNOWN;
 
-        // We'll allocate space for several of these and they will need to be padded for alignment.
-        static_assert(sizeof(SceneConstantBuffer) < D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, "Checking the size here.");
-
-        union AlignedSceneConstantBuffer {
-            SceneConstantBuffer constants;
-            uint8_t alignment_padding[D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT];
-        };
-        AlignedSceneConstantBuffer* mapped_constant_data_;
+        ConstantBufferWrapper<SceneConstantBuffer>* mapped_constant_data_;
         ComPtr<ID3D12Resource> per_frame_constants_;
 
         ComPtr<ID3D12RootSignature> ray_tracing_global_root_signature_;
