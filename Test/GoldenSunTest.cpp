@@ -8,6 +8,8 @@
 #include <GoldenSun/Util.hpp>
 #include <GoldenSun/Uuid.hpp>
 
+#include <iostream>
+
 #include <gtest/gtest.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -153,9 +155,25 @@ namespace GoldenSun
         this->WaitForGpu();
     }
 
-    ID3D12Device* TestEnvironment::Device()
+    void TestEnvironment::BeginFrame()
     {
-        return device_.Get();
+        TIFHR(cmd_allocators_[frame_index_]->Reset());
+    }
+
+    void TestEnvironment::EndFrame()
+    {
+        uint64_t const curr_fence_value = fence_vals_[frame_index_];
+        TIFHR(cmd_queue_->Signal(fence_.Get(), curr_fence_value));
+
+        frame_index_ = (frame_index_ + 1) % FrameCount;
+
+        if (fence_->GetCompletedValue() < fence_vals_[frame_index_])
+        {
+            TIFHR(fence_->SetEventOnCompletion(fence_vals_[frame_index_], fence_event_.get()));
+            ::WaitForSingleObjectEx(fence_event_.get(), INFINITE, FALSE);
+        }
+
+        fence_vals_[frame_index_] = curr_fence_value + 1;
     }
 
     void TestEnvironment::ExecuteCommandList()
@@ -664,21 +682,32 @@ namespace GoldenSun
     void TestEnvironment::CompareWithExpected(std::string const& expected_name, ID3D12Resource* actual_image, float channel_tolerance)
     {
         auto expected_image = this->LoadTexture(EXPECTED_DIR + expected_name + ".png");
-        auto result = this->CompareImages(expected_image.Get(), actual_image, channel_tolerance);
-        if (result.error_image)
+
+        std::string const result_dir = EXPECTED_DIR "../Result/";
+        if (!expected_image)
         {
-            this->SaveTexture(result.error_image.Get(), EXPECTED_DIR "../Output/" + expected_name + "_diff.png");
+            std::string const expected_file = result_dir + expected_name + ".png";
+            std::cout << "Saving expected image to " << expected_file;
+            this->SaveTexture(actual_image, expected_file.c_str());
         }
+        else
+        {
+            auto result = this->CompareImages(expected_image.Get(), actual_image, channel_tolerance);
+            if (result.error_image)
+            {
+                this->SaveTexture(result.error_image.Get(), result_dir + expected_name + "_diff.png");
+            }
 
-        EXPECT_FALSE(result.format_unmatch);
-        EXPECT_FALSE(result.size_unmatch);
+            EXPECT_FALSE(result.format_unmatch);
+            EXPECT_FALSE(result.size_unmatch);
 
-        EXPECT_LT(result.channel_errors[0], 1e-6f);
-        EXPECT_LT(result.channel_errors[1], 1e-6f);
-        EXPECT_LT(result.channel_errors[2], 1e-6f);
-        EXPECT_LT(result.channel_errors[3], 1e-6f);
+            EXPECT_LT(result.channel_errors[0], 1e-6f);
+            EXPECT_LT(result.channel_errors[1], 1e-6f);
+            EXPECT_LT(result.channel_errors[2], 1e-6f);
+            EXPECT_LT(result.channel_errors[3], 1e-6f);
 
-        EXPECT_FALSE(result.error_image);
+            EXPECT_FALSE(result.error_image);
+        }
     }
 } // namespace GoldenSun
 

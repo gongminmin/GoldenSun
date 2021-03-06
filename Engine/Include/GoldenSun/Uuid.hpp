@@ -38,7 +38,7 @@ namespace GoldenSun
     };
 
     template <typename T>
-    Uuid const& UuidOf() = delete;
+    Uuid const& UuidOf();
 
     template <typename T>
     inline Uuid const& UuidOf(T* p)

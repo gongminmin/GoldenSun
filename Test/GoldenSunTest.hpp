@@ -25,7 +25,25 @@ namespace GoldenSun
         void SetUp() override;
         void TearDown() override;
 
-        ID3D12Device* Device();
+        ID3D12Device* Device() const noexcept
+        {
+            return device_.Get();
+        }
+        ID3D12CommandQueue* CommandQueue() const noexcept
+        {
+            return cmd_queue_.Get();
+        }
+        ID3D12CommandAllocator* CommandAllocator() const noexcept
+        {
+            return cmd_allocators_[frame_index_].Get();
+        }
+        ID3D12GraphicsCommandList4* CommandList() const noexcept
+        {
+            return cmd_list_.Get();
+        }
+
+        void BeginFrame();
+        void EndFrame();
 
         void ExecuteCommandList();
         void WaitForGpu();

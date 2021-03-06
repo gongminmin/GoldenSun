@@ -3,8 +3,13 @@
 #include <memory>
 
 #include <DirectXMath.h>
+#include <dxgiformat.h>
 
 #include <GoldenSun/Base.hpp>
+
+struct ID3D12CommandQueue;
+struct ID3D12GraphicsCommandList;
+struct ID3D12Resource;
 
 namespace GoldenSun
 {

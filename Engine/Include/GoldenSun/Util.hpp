@@ -1,5 +1,7 @@
 #pragma once
 
+#include <d3d12.h>
+
 #include <GoldenSun/Base.hpp>
 
 namespace GoldenSun

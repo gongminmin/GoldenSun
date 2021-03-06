@@ -2,6 +2,7 @@ set(exe_name GoldenSunTest)
 
 set(source_files
     GoldenSunTest.cpp
+    RayCastingTest.cpp
     TestFrameworkTest.cpp
 )
 
