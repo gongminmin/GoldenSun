@@ -1,0 +1,7 @@
+* text=auto
+*.hpp text
+*.cpp text
+*.hlsl text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text
+

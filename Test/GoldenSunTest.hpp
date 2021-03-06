@@ -1,0 +1,68 @@
+#pragma once
+
+#define INITGUID
+
+#include <windows.h>
+
+#include <d3d12.h>
+#include <dxgi1_6.h>
+
+#ifdef _DEBUG
+#include <dxgidebug.h>
+#endif
+
+#include <GoldenSun/ComPtr.hpp>
+#include <GoldenSun/SmartPtrHelper.hpp>
+#include <GoldenSun/Util.hpp>
+
+#include <gtest/gtest.h>
+
+namespace GoldenSun
+{
+    class TestEnvironment : public testing::Environment
+    {
+    public:
+        void SetUp() override;
+        void TearDown() override;
+
+        ID3D12Device* Device();
+
+        void ExecuteCommandList();
+        void WaitForGpu();
+
+        ComPtr<ID3D12Resource> LoadTexture(std::string const& file_name);
+        void SaveTexture(ID3D12Resource* texture, std::string const& file_name);
+        ComPtr<ID3D12Resource> CloneTexture(ID3D12Resource* texture);
+        void CopyTexture(ID3D12Resource* src_texture, ID3D12Resource* dst_texture);
+
+        void UploadTexture(ID3D12Resource* texture, uint8_t const* data);
+        std::vector<uint8_t> ReadBackTexture(ID3D12Resource* texture);
+
+        struct CompareResult
+        {
+            bool size_unmatch;
+            bool format_unmatch;
+            float channel_errors[4];
+
+            ComPtr<ID3D12Resource> error_image;
+        };
+        CompareResult CompareImages(ID3D12Resource* expected_image, ID3D12Resource* actual_image, float channel_tolerance = 1 / 255.0f);
+
+        void CompareWithExpected(std::string const& expected_name, ID3D12Resource* actual_image, float channel_tolerance = 1 / 255.0f);
+
+    private:
+        ComPtr<IDXGIFactory4> dxgi_factory_;
+        ComPtr<ID3D12Device> device_;
+        ComPtr<ID3D12CommandQueue> cmd_queue_;
+        ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
+        ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];
+
+        ComPtr<ID3D12Fence> fence_;
+        uint64_t fence_vals_[FrameCount]{};
+        Win32UniqueHandle fence_event_;
+
+        uint32_t frame_index_ = 0;
+    };
+
+    TestEnvironment& TestEnv();
+} // namespace GoldenSun

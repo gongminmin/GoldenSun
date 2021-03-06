@@ -43,58 +43,6 @@ namespace
     };
     static_assert(sizeof(RayAttrib) == sizeof(XMFLOAT2));
 
-    template <uint32_t Alignment>
-    constexpr uint32_t Align(uint32_t size) noexcept
-    {
-        static_assert((Alignment & (Alignment - 1)) == 0);
-        return (size + (Alignment - 1)) & ~(Alignment - 1);
-    }
-
-    D3D12_ROOT_PARAMETER CreateRootParameterAsDescriptorTable(const D3D12_DESCRIPTOR_RANGE* descriptor_ranges,
-        uint32_t num_descriptor_ranges, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL) noexcept
-    {
-        D3D12_ROOT_PARAMETER ret;
-        ret.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        ret.DescriptorTable.NumDescriptorRanges = num_descriptor_ranges;
-        ret.DescriptorTable.pDescriptorRanges = descriptor_ranges;
-        ret.ShaderVisibility = visibility;
-        return ret;
-    }
-
-    D3D12_ROOT_PARAMETER CreateRootParameterAsShaderResourceView(
-        uint32_t shader_register, uint32_t register_space = 0, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL) noexcept
-    {
-        D3D12_ROOT_PARAMETER ret;
-        ret.ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-        ret.Descriptor.ShaderRegister = shader_register;
-        ret.Descriptor.RegisterSpace = register_space;
-        ret.ShaderVisibility = visibility;
-        return ret;
-    }
-
-    D3D12_ROOT_PARAMETER CreateRootParameterAsConstantBufferView(
-        uint32_t shader_register, uint32_t register_space = 0, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL) noexcept
-    {
-        D3D12_ROOT_PARAMETER ret;
-        ret.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        ret.Descriptor.ShaderRegister = shader_register;
-        ret.Descriptor.RegisterSpace = register_space;
-        ret.ShaderVisibility = visibility;
-        return ret;
-    }
-
-    D3D12_ROOT_PARAMETER CreateRootParameterAsConstants(uint32_t num_32bit_values, uint32_t shader_register, uint32_t register_space = 0,
-        D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL) noexcept
-    {
-        D3D12_ROOT_PARAMETER ret;
-        ret.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-        ret.Constants.Num32BitValues = num_32bit_values;
-        ret.Constants.ShaderRegister = shader_register;
-        ret.Constants.RegisterSpace = register_space;
-        ret.ShaderVisibility = visibility;
-        return ret;
-    }
-
     // Shader record = {{Shader ID}, {RootArguments}}
     class ShaderRecord
     {
@@ -583,12 +531,6 @@ namespace
         HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature_support_data, sizeof(feature_support_data));
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
-
-    template <typename T>
-    struct ConstantBufferWrapper : T
-    {
-        uint8_t padding[Align<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(sizeof(T)) - sizeof(T)];
-    };
 
     struct SceneConstantBuffer
     {
