@@ -21,7 +21,7 @@ using namespace GoldenSun;
 
 DEFINE_UUID_OF(ID3D12CommandAllocator);
 DEFINE_UUID_OF(ID3D12DescriptorHeap);
-DEFINE_UUID_OF(ID3D12Device);
+DEFINE_UUID_OF(ID3D12Device5);
 DEFINE_UUID_OF(ID3D12Fence);
 DEFINE_UUID_OF(ID3D12GraphicsCommandList4);
 DEFINE_UUID_OF(ID3D12Resource);
@@ -82,12 +82,12 @@ namespace
     class ShaderTable
     {
     public:
-        ShaderTable(ID3D12Device* device, uint32_t num_shader_records, uint32_t shader_record_size)
+        ShaderTable(ID3D12Device5* device, uint32_t num_shader_records, uint32_t shader_record_size)
             : ShaderTable(device, num_shader_records, shader_record_size, nullptr)
         {
         }
 
-        ShaderTable(ID3D12Device* device, uint32_t num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
+        ShaderTable(ID3D12Device5* device, uint32_t num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
             : shader_record_size_(Align<D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT>(shader_record_size))
         {
             D3D12_HEAP_PROPERTIES const upload_heap_prop = {
@@ -525,7 +525,7 @@ namespace
         ::OutputDebugStringW(ss.str().c_str());
     }
 
-    bool IsDXRSupported(ID3D12Device* device)
+    bool IsDXRSupported(ID3D12Device5* device)
     {
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature_support_data{};
         HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature_support_data, sizeof(feature_support_data));
@@ -580,7 +580,7 @@ namespace
     public:
         explicit GoldenSunEngineD3D12(ID3D12CommandQueue* cmd_queue) : cmd_queue_(cmd_queue)
         {
-            cmd_queue_->GetDevice(UuidOf<ID3D12Device>(), device_.PutVoid());
+            cmd_queue_->GetDevice(UuidOf<ID3D12Device5>(), device_.PutVoid());
 
             Verify(IsDXRSupported(device_.Get()));
 
@@ -663,11 +663,9 @@ namespace
             light_color_ = {color.x, color.y, color.z, 1};
         }
 
-        void Render(ID3D12GraphicsCommandList* cmd_list) override
+        void Render(ID3D12GraphicsCommandList4* cmd_list) override
         {
-            ComPtr<ID3D12GraphicsCommandList4> dxr_cmd_list = ComPtr<ID3D12CommandList>(cmd_list).As<ID3D12GraphicsCommandList4>();
-
-            dxr_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
+            cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
                 XMStoreFloat4(&mapped_constant_data_[frame_index_].camera_pos, eye_);
@@ -681,16 +679,16 @@ namespace
                 mapped_constant_data_[frame_index_].light_color = light_color_;
 
                 auto const cb_gpu_addr = per_frame_constants_->GetGPUVirtualAddress() + frame_index_ * sizeof(mapped_constant_data_[0]);
-                dxr_cmd_list->SetComputeRootConstantBufferView(ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), cb_gpu_addr);
+                cmd_list->SetComputeRootConstantBufferView(ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), cb_gpu_addr);
             }
 
             ID3D12DescriptorHeap* heaps[] = {descriptor_heap_.Get()};
-            dxr_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
-            dxr_cmd_list->SetComputeRootDescriptorTable(
+            cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
+            cmd_list->SetComputeRootDescriptorTable(
                 ConvertToUint(GlobalRootSignatureParams::VertexBuffersSlot), vertex_buffer_.gpu_descriptor_handle);
-            dxr_cmd_list->SetComputeRootDescriptorTable(
+            cmd_list->SetComputeRootDescriptorTable(
                 ConvertToUint(GlobalRootSignatureParams::OutputViewSlot), ray_tracing_output_resource_uav_gpu_descriptor_handle_);
-            dxr_cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignatureParams::AccelerationStructureSlot),
+            cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignatureParams::AccelerationStructureSlot),
                 top_level_acceleration_structure_->GetGPUVirtualAddress());
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
@@ -710,8 +708,8 @@ namespace
             dispatch_desc.Height = height_;
             dispatch_desc.Depth = 1;
 
-            dxr_cmd_list->SetPipelineState1(state_obj_.Get());
-            dxr_cmd_list->DispatchRays(&dispatch_desc);
+            cmd_list->SetPipelineState1(state_obj_.Get());
+            cmd_list->DispatchRays(&dispatch_desc);
 
             frame_index_ = (frame_index_ + 1) % FrameCount;
         }

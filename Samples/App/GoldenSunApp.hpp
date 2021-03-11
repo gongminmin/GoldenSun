@@ -53,9 +53,9 @@ namespace GoldenSun
         bool window_visible_ = true;
 
         ComPtr<IDXGIFactory4> dxgi_factory_;
-        ComPtr<ID3D12Device> device_;
+        ComPtr<ID3D12Device5> device_;
         ComPtr<ID3D12CommandQueue> cmd_queue_;
-        ComPtr<ID3D12GraphicsCommandList> cmd_list_;
+        ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
         ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];
         ComPtr<IDXGISwapChain3> swap_chain_;
         ComPtr<ID3D12Resource> render_targets_[FrameCount];

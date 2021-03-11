@@ -2,6 +2,12 @@
 
 #define INITGUID
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 #include <d3d12.h>
@@ -25,7 +31,7 @@ namespace GoldenSun
         void SetUp() override;
         void TearDown() override;
 
-        ID3D12Device* Device() const noexcept
+        ID3D12Device5* Device() const noexcept
         {
             return device_.Get();
         }
@@ -70,7 +76,7 @@ namespace GoldenSun
 
     private:
         ComPtr<IDXGIFactory4> dxgi_factory_;
-        ComPtr<ID3D12Device> device_;
+        ComPtr<ID3D12Device5> device_;
         ComPtr<ID3D12CommandQueue> cmd_queue_;
         ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
         ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];

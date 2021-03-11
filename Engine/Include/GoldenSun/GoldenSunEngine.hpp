@@ -8,7 +8,7 @@
 #include <GoldenSun/Base.hpp>
 
 struct ID3D12CommandQueue;
-struct ID3D12GraphicsCommandList;
+struct ID3D12GraphicsCommandList4;
 struct ID3D12Resource;
 
 namespace GoldenSun
@@ -38,7 +38,7 @@ namespace GoldenSun
             float near_plane, float far_plane) = 0;
         virtual void Light(DirectX::XMFLOAT3 const& pos, DirectX::XMFLOAT3 const& color) = 0;
 
-        virtual void Render(ID3D12GraphicsCommandList* cmd_list) = 0;
+        virtual void Render(ID3D12GraphicsCommandList4* cmd_list) = 0;
 
         virtual ID3D12Resource* Output() const noexcept = 0;
     };

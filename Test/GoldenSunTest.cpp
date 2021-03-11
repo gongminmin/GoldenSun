@@ -25,7 +25,7 @@ using namespace testing;
 DEFINE_UUID_OF(ID3D12CommandAllocator);
 DEFINE_UUID_OF(ID3D12CommandQueue);
 DEFINE_UUID_OF(ID3D12DescriptorHeap);
-DEFINE_UUID_OF(ID3D12Device);
+DEFINE_UUID_OF(ID3D12Device5);
 DEFINE_UUID_OF(ID3D12GraphicsCommandList4);
 DEFINE_UUID_OF(ID3D12Fence);
 DEFINE_UUID_OF(ID3D12PipelineState);
@@ -103,7 +103,7 @@ namespace GoldenSun
                     continue;
                 }
 
-                if (SUCCEEDED(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device>(), device_.PutVoid())))
+                if (SUCCEEDED(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device5>(), device_.PutVoid())))
                 {
                     break;
                 }
@@ -117,7 +117,7 @@ namespace GoldenSun
         {
             TIFHR(dxgi_factory_->EnumWarpAdapter(UuidOf<IDXGIAdapter1>(), adapter.PutVoid()));
 
-            TIFHR(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device>(), device_.PutVoid()));
+            TIFHR(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device5>(), device_.PutVoid()));
         }
 #endif
 

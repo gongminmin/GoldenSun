@@ -16,8 +16,8 @@ using namespace DirectX;
 DEFINE_UUID_OF(ID3D12CommandAllocator);
 DEFINE_UUID_OF(ID3D12CommandQueue);
 DEFINE_UUID_OF(ID3D12DescriptorHeap);
-DEFINE_UUID_OF(ID3D12Device);
-DEFINE_UUID_OF(ID3D12GraphicsCommandList);
+DEFINE_UUID_OF(ID3D12Device5);
+DEFINE_UUID_OF(ID3D12GraphicsCommandList4);
 DEFINE_UUID_OF(ID3D12Fence);
 DEFINE_UUID_OF(ID3D12Resource);
 DEFINE_UUID_OF(IDXGIAdapter1);
@@ -340,7 +340,7 @@ namespace GoldenSun
                     continue;
                 }
 
-                if (SUCCEEDED(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device>(), device_.PutVoid())))
+                if (SUCCEEDED(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device5>(), device_.PutVoid())))
                 {
                     break;
                 }
@@ -354,7 +354,7 @@ namespace GoldenSun
         {
             TIFHR(dxgi_factory_->EnumWarpAdapter(UuidOf<IDXGIAdapter1>(), adapter.PutVoid()));
 
-            TIFHR(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device>(), device_.PutVoid()));
+            TIFHR(::D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, UuidOf<ID3D12Device5>(), device_.PutVoid()));
         }
 #endif
 
@@ -383,7 +383,7 @@ namespace GoldenSun
         }
 
         TIFHR(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_allocators_[0].Get(), nullptr,
-            UuidOf<ID3D12GraphicsCommandList>(), cmd_list_.PutVoid()));
+            UuidOf<ID3D12GraphicsCommandList4>(), cmd_list_.PutVoid()));
         TIFHR(cmd_list_->Close());
 
         TIFHR(device_->CreateFence(fence_vals_[frame_index_], D3D12_FENCE_FLAG_NONE, UuidOf<ID3D12Fence>(), fence_.PutVoid()));
