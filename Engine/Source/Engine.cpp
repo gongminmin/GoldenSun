@@ -88,35 +88,19 @@ namespace
         }
 
         ShaderTable(ID3D12Device5* device, uint32_t num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
-            : shader_record_size_(Align<D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT>(shader_record_size))
+            : shader_record_size_(Align<D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT>(shader_record_size)),
+              buffer_(device, num_shader_records * shader_record_size_, resource_name)
         {
-            D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-            D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, num_shader_records * shader_record_size_, 1, 1, 1,
-                DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-            TIFHR(device->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr, UuidOf<ID3D12Resource>(), resource_.PutVoid()));
-            if (resource_name != nullptr)
-            {
-                resource_->SetName(resource_name);
-            }
-
-            D3D12_RANGE const read_range{0, 0};
-            TIFHR(resource_->Map(0, &read_range, reinterpret_cast<void**>(&mapped_shader_records_)));
+            mapped_shader_records_ = buffer_.MappedData<uint8_t>();
         }
 
         ~ShaderTable() noexcept
         {
-            if (resource_)
-            {
-                resource_->Unmap(0, nullptr);
-            }
         }
 
         ID3D12Resource* Resource() const noexcept
         {
-            return resource_.Get();
+            return buffer_.Resource();
         }
 
         void push_back(ShaderRecord const& shader_record) noexcept
@@ -126,10 +110,10 @@ namespace
         }
 
     private:
-        ComPtr<ID3D12Resource> resource_;
-
-        uint8_t* mapped_shader_records_;
         uint32_t shader_record_size_;
+
+        GpuUploadBuffer buffer_;
+        uint8_t* mapped_shader_records_;
     };
 
     class D3D12StateSubObject
@@ -532,6 +516,13 @@ namespace
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
 
+    ComPtr<ID3D12Device5> DeviceFromCommandQueue(ID3D12CommandQueue* cmd_queue)
+    {
+        ComPtr<ID3D12Device5> device;
+        cmd_queue->GetDevice(UuidOf<ID3D12Device5>(), device.PutVoid());
+        return device;
+    }
+
     struct SceneConstantBuffer
     {
         XMFLOAT4X4 inv_view_proj;
@@ -578,10 +569,10 @@ namespace
         }
 
     public:
-        explicit EngineD3D12(ID3D12CommandQueue* cmd_queue) : cmd_queue_(cmd_queue)
+        explicit EngineD3D12(ID3D12CommandQueue* cmd_queue)
+            : device_(DeviceFromCommandQueue(cmd_queue)), cmd_queue_(cmd_queue),
+              per_frame_constants_(device_.Get(), FrameCount, L"Per Frame Constants")
         {
-            cmd_queue_->GetDevice(UuidOf<ID3D12Device5>(), device_.PutVoid());
-
             Verify(IsDXRSupported(device_.Get()));
 
             for (auto& allocator : cmd_allocators_)
@@ -604,7 +595,6 @@ namespace
             this->CreateRayTracingPipelineStateObject();
             this->CreateDescriptorHeap();
 
-            this->CreateConstantBuffers();
             this->BuildShaderTables();
         }
 
@@ -668,18 +658,19 @@ namespace
             cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
-                mapped_constant_data_[frame_index_].camera_pos = XMFLOAT4(eye_.x, eye_.y, eye_.z, 1);
+                per_frame_constants_->camera_pos = XMFLOAT4(eye_.x, eye_.y, eye_.z, 1);
 
                 auto const view = XMMatrixLookAtLH(XMLoadFloat3(&eye_), XMLoadFloat3(&look_at_), XMLoadFloat3(&up_));
                 auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
-                XMStoreFloat4x4(
-                    &mapped_constant_data_[frame_index_].inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
+                XMStoreFloat4x4(&per_frame_constants_->inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
-                mapped_constant_data_[frame_index_].light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
-                mapped_constant_data_[frame_index_].light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
+                per_frame_constants_->light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
+                per_frame_constants_->light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
 
-                auto const cb_gpu_addr = per_frame_constants_->GetGPUVirtualAddress() + frame_index_ * sizeof(mapped_constant_data_[0]);
-                cmd_list->SetComputeRootConstantBufferView(ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), cb_gpu_addr);
+                per_frame_constants_.UploadToGpu(frame_index_);
+
+                cmd_list->SetComputeRootConstantBufferView(
+                    ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), per_frame_constants_.GpuVirtualAddress(frame_index_));
             }
 
             ID3D12DescriptorHeap* heaps[] = {descriptor_heap_.Get()};
@@ -689,7 +680,7 @@ namespace
             cmd_list->SetComputeRootDescriptorTable(
                 ConvertToUint(GlobalRootSignatureParams::OutputViewSlot), ray_tracing_output_resource_uav_gpu_descriptor_handle_);
             cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignatureParams::AccelerationStructureSlot),
-                top_level_acceleration_structure_->GetGPUVirtualAddress());
+                top_level_acceleration_structure_.Resource()->GetGPUVirtualAddress());
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
@@ -720,21 +711,6 @@ namespace
         }
 
     private:
-        void CreateConstantBuffers()
-        {
-            D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-            D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, FrameCount * sizeof(mapped_constant_data_[0]), 1,
-                1, 1, DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-            TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr, UuidOf<ID3D12Resource>(), per_frame_constants_.PutVoid()));
-            per_frame_constants_->SetName(L"Per Frame Constants");
-
-            D3D12_RANGE const read_range{0, 0};
-            TIFHR(per_frame_constants_->Map(0, &read_range, reinterpret_cast<void**>(&mapped_constant_data_)));
-        }
-
         void CreateWindowSizeDependentResources()
         {
             D3D12_HEAP_PROPERTIES const default_heap_prop = {
@@ -917,85 +893,37 @@ namespace
             device_->GetRaytracingAccelerationStructurePrebuildInfo(&bottom_level_inputs, &bottom_level_prebuild_info);
             Verify(bottom_level_prebuild_info.ResultDataMaxSizeInBytes > 0);
 
-            D3D12_HEAP_PROPERTIES const default_heap_prop = {
-                D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
+            GpuDefaultBuffer scratch_resource(device_.Get(),
+                std::max(top_level_prebuild_info.ScratchDataSizeInBytes, bottom_level_prebuild_info.ScratchDataSizeInBytes),
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
 
-            ComPtr<ID3D12Resource> scratch_resource;
-            {
-                D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0,
-                    std::max(top_level_prebuild_info.ScratchDataSizeInBytes, bottom_level_prebuild_info.ScratchDataSizeInBytes), 1, 1, 1,
-                    DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
-                TIFHR(device_->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, UuidOf<ID3D12Resource>(), scratch_resource.PutVoid()));
-                scratch_resource->SetName(L"ScratchResource");
-            }
-            {
-                D3D12_RESOURCE_DESC const buffer_desc = {
-                    D3D12_RESOURCE_DIMENSION_BUFFER,
-                    0,
-                    top_level_prebuild_info.ResultDataMaxSizeInBytes,
-                    1,
-                    1,
-                    1,
-                    DXGI_FORMAT_UNKNOWN,
-                    {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                };
-                TIFHR(device_->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-                    D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, UuidOf<ID3D12Resource>(),
-                    top_level_acceleration_structure_.PutVoid()));
-                top_level_acceleration_structure_->SetName(L"TopLevelAccelerationStructure");
-            }
-            {
-                D3D12_RESOURCE_DESC const buffer_desc = {
-                    D3D12_RESOURCE_DIMENSION_BUFFER,
-                    0,
-                    bottom_level_prebuild_info.ResultDataMaxSizeInBytes,
-                    1,
-                    1,
-                    1,
-                    DXGI_FORMAT_UNKNOWN,
-                    {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                };
-                TIFHR(device_->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-                    D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, UuidOf<ID3D12Resource>(),
-                    bottom_level_acceleration_structure_.PutVoid()));
-                bottom_level_acceleration_structure_->SetName(L"BottomLevelAccelerationStructure");
-            }
+            top_level_acceleration_structure_ = GpuDefaultBuffer(device_.Get(), top_level_prebuild_info.ResultDataMaxSizeInBytes,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+                L"TopLevelAccelerationStructure");
+            bottom_level_acceleration_structure_ = GpuDefaultBuffer(device_.Get(), bottom_level_prebuild_info.ResultDataMaxSizeInBytes,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+                L"BottomLevelAccelerationStructure");
 
-            ComPtr<ID3D12Resource> instance_descs_buffer;
+            GpuUploadBuffer instance_descs_buffer;
             {
                 D3D12_RAYTRACING_INSTANCE_DESC instance_desc{};
                 instance_desc.Transform[0][0] = instance_desc.Transform[1][1] = instance_desc.Transform[2][2] = 1;
                 instance_desc.InstanceMask = 1;
-                instance_desc.AccelerationStructure = bottom_level_acceleration_structure_->GetGPUVirtualAddress();
+                instance_desc.AccelerationStructure = bottom_level_acceleration_structure_.Resource()->GetGPUVirtualAddress();
 
-                D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                    D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-                D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, sizeof(instance_desc), 1, 1, 1,
-                    DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-                TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-                    D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, UuidOf<ID3D12Resource>(), instance_descs_buffer.PutVoid()));
-                instance_descs_buffer->SetName(L"InstanceDescs");
-
-                D3D12_RANGE const read_range{0, 0};
-                void* mapped_data;
-                instance_descs_buffer->Map(0, &read_range, &mapped_data);
-                memcpy(mapped_data, &instance_desc, sizeof(instance_desc));
-                instance_descs_buffer->Unmap(0, nullptr);
+                instance_descs_buffer = GpuUploadBuffer(device_.Get(), sizeof(instance_desc), L"InstanceDescs");
+                memcpy(instance_descs_buffer.MappedData<void>(), &instance_desc, sizeof(instance_desc));
             }
 
             {
-                bottom_level_build_desc.ScratchAccelerationStructureData = scratch_resource->GetGPUVirtualAddress();
-                bottom_level_build_desc.DestAccelerationStructureData = bottom_level_acceleration_structure_->GetGPUVirtualAddress();
+                bottom_level_build_desc.ScratchAccelerationStructureData = scratch_resource.Resource()->GetGPUVirtualAddress();
+                bottom_level_build_desc.DestAccelerationStructureData =
+                    bottom_level_acceleration_structure_.Resource()->GetGPUVirtualAddress();
             }
             {
-                top_level_build_desc.DestAccelerationStructureData = top_level_acceleration_structure_->GetGPUVirtualAddress();
-                top_level_build_desc.ScratchAccelerationStructureData = scratch_resource->GetGPUVirtualAddress();
-                top_level_build_desc.Inputs.InstanceDescs = instance_descs_buffer->GetGPUVirtualAddress();
+                top_level_build_desc.DestAccelerationStructureData = top_level_acceleration_structure_.Resource()->GetGPUVirtualAddress();
+                top_level_build_desc.ScratchAccelerationStructureData = scratch_resource.Resource()->GetGPUVirtualAddress();
+                top_level_build_desc.Inputs.InstanceDescs = instance_descs_buffer.Resource()->GetGPUVirtualAddress();
             }
 
             cmd_list_->Reset(cmd_allocators_[frame_index_].Get(), nullptr);
@@ -1005,7 +933,7 @@ namespace
             D3D12_RESOURCE_BARRIER barrier;
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
             barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier.UAV.pResource = bottom_level_acceleration_structure_.Get();
+            barrier.UAV.pResource = bottom_level_acceleration_structure_.Resource();
             cmd_list_->ResourceBarrier(1, &barrier);
 
             cmd_list_->BuildRaytracingAccelerationStructure(&top_level_build_desc, 0, nullptr);
@@ -1120,8 +1048,7 @@ namespace
         float aspect_ratio_ = 0;
         DXGI_FORMAT format_ = DXGI_FORMAT_UNKNOWN;
 
-        ConstantBufferWrapper<SceneConstantBuffer>* mapped_constant_data_;
-        ComPtr<ID3D12Resource> per_frame_constants_;
+        ConstantBuffer<SceneConstantBuffer> per_frame_constants_;
 
         ComPtr<ID3D12RootSignature> ray_tracing_global_root_signature_;
         ComPtr<ID3D12RootSignature> ray_tracing_local_root_signature_;
@@ -1134,8 +1061,8 @@ namespace
         Buffer index_buffer_;
         Buffer material_buffer_;
 
-        ComPtr<ID3D12Resource> bottom_level_acceleration_structure_;
-        ComPtr<ID3D12Resource> top_level_acceleration_structure_;
+        GpuDefaultBuffer bottom_level_acceleration_structure_;
+        GpuDefaultBuffer top_level_acceleration_structure_;
 
         ComPtr<ID3D12Resource> ray_tracing_output_;
         D3D12_GPU_DESCRIPTOR_HANDLE ray_tracing_output_resource_uav_gpu_descriptor_handle_;

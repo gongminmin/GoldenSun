@@ -305,29 +305,18 @@ namespace GoldenSun
         uint64_t required_size = 0;
         device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-            D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-        D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, required_size, 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0},
-            D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-        ComPtr<ID3D12Resource> upload_buffer;
-        TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr, UuidOf<ID3D12Resource>(), upload_buffer.PutVoid()));
+        GpuUploadBuffer upload_buffer(device_.Get(), required_size, L"UploadBuffer");
 
         assert(row_size_in_bytes >= width * 4);
 
-        uint8_t* tex_data;
-        D3D12_RANGE read_range{0, 0};
-        TIFHR(upload_buffer->Map(0, &read_range, reinterpret_cast<void**>(&tex_data)));
+        uint8_t* tex_data = upload_buffer.MappedData<uint8_t>();
         for (uint32_t y = 0; y < height; ++y)
         {
             memcpy(tex_data + y * row_size_in_bytes, data + y * width * 4, width * 4);
         }
-        D3D12_RANGE write_range{0, required_size};
-        upload_buffer->Unmap(0, &write_range);
 
         D3D12_TEXTURE_COPY_LOCATION src;
-        src.pResource = upload_buffer.Get();
+        src.pResource = upload_buffer.Resource();
         src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
         src.PlacedFootprint = layout;
 
@@ -374,14 +363,7 @@ namespace GoldenSun
         uint64_t required_size = 0;
         device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        D3D12_HEAP_PROPERTIES const readback_heap_prop = {
-            D3D12_HEAP_TYPE_READBACK, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-        D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, required_size, 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0},
-            D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-        ComPtr<ID3D12Resource> readback_buffer;
-        TIFHR(device_->CreateCommittedResource(&readback_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST,
-            nullptr, UuidOf<ID3D12Resource>(), readback_buffer.PutVoid()));
+        GpuReadbackBuffer readback_buffer(device_.Get(), required_size, L"ReadbackBuffer");
 
         D3D12_TEXTURE_COPY_LOCATION src;
         src.pResource = texture;
@@ -389,7 +371,7 @@ namespace GoldenSun
         src.SubresourceIndex = 0;
 
         D3D12_TEXTURE_COPY_LOCATION dst;
-        dst.pResource = readback_buffer.Get();
+        dst.pResource = readback_buffer.Resource();
         dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
         dst.PlacedFootprint = layout;
 
@@ -423,15 +405,11 @@ namespace GoldenSun
         assert(row_size_in_bytes >= tex_desc.Width * 4);
 
         std::vector<uint8_t> data(tex_desc.Width * tex_desc.Height * 4);
-        uint8_t* tex_data;
-        D3D12_RANGE read_range{0, required_size};
-        TIFHR(readback_buffer->Map(0, &read_range, reinterpret_cast<void**>(&tex_data)));
+        uint8_t const* tex_data = readback_buffer.MappedData<uint8_t>();
         for (uint32_t y = 0; y < tex_desc.Height; ++y)
         {
             memcpy(&data[y * tex_desc.Width * 4], tex_data + y * row_size_in_bytes, tex_desc.Width * 4);
         }
-        D3D12_RANGE write_range{0, 0};
-        readback_buffer->Unmap(0, &write_range);
 
         return data;
     }
@@ -466,21 +444,9 @@ namespace GoldenSun
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, UuidOf<ID3D12Resource>(), ret.error_image.PutVoid()));
             }
 
-            ComPtr<ID3D12Resource> channel_error_buff;
-            ComPtr<ID3D12Resource> channel_error_cpu_buff;
-            {
-                D3D12_RESOURCE_DESC buff_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, sizeof(XMUINT4), 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
-                TIFHR(device_->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &buff_desc,
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, UuidOf<ID3D12Resource>(), channel_error_buff.PutVoid()));
-
-                D3D12_HEAP_PROPERTIES const readback_heap_prop = {
-                    D3D12_HEAP_TYPE_READBACK, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-                buff_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-                TIFHR(device_->CreateCommittedResource(&readback_heap_prop, D3D12_HEAP_FLAG_NONE, &buff_desc,
-                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr, UuidOf<ID3D12Resource>(), channel_error_cpu_buff.PutVoid()));
-            }
+            GpuDefaultBuffer channel_error_buff(device_.Get(), sizeof(XMUINT4), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ChannelErrorBuffer");
+            GpuReadbackBuffer channel_error_cpu_buff(device_.Get(), sizeof(XMUINT4), L"ChannelErrorCpuBuffer");
 
             D3D12_DESCRIPTOR_HEAP_DESC desc_heap_desc{};
             desc_heap_desc.NumDescriptors = 4; // expected_image, actual_image, result_image, error_buffer
@@ -546,7 +512,7 @@ namespace GoldenSun
             D3D12_GPU_DESCRIPTOR_HANDLE expected_srv_gpu_desc_handle = CreateSrv(expected_image, 0);
             D3D12_GPU_DESCRIPTOR_HANDLE actual_srv_cpu_desc_handle = CreateSrv(actual_image, 1);
             D3D12_GPU_DESCRIPTOR_HANDLE result_uav_cpu_desc_handle = CreateUav(ret.error_image.Get(), 2);
-            D3D12_GPU_DESCRIPTOR_HANDLE channel_error_uav_cpu_desc_handle = CreateUav(channel_error_buff.Get(), 3, sizeof(XMUINT4));
+            D3D12_GPU_DESCRIPTOR_HANDLE channel_error_uav_cpu_desc_handle = CreateUav(channel_error_buff.Resource(), 3, sizeof(XMUINT4));
 
             struct ComparatorConstantBuffer
             {
@@ -554,26 +520,11 @@ namespace GoldenSun
                 float channel_tolerance;
             };
 
-            ComPtr<ID3D12Resource> comparator_cb;
+            ConstantBuffer<ComparatorConstantBuffer> comparator_cb(device_.Get(), 1, L"ComparatorCb");
             {
-                D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                    D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-                D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0,
-                    sizeof(ConstantBufferWrapper<ComparatorConstantBuffer>), 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0},
-                    D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-                TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-                    D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, UuidOf<ID3D12Resource>(), comparator_cb.PutVoid()));
-                comparator_cb->SetName(L"ComparatorCb");
-
-                ConstantBufferWrapper<ComparatorConstantBuffer>* mapped_comparator_cb;
-
-                D3D12_RANGE const read_range{0, 0};
-                TIFHR(comparator_cb->Map(0, &read_range, reinterpret_cast<void**>(&mapped_comparator_cb)));
-                mapped_comparator_cb->width_height = {static_cast<uint32_t>(expected_desc.Width), expected_desc.Height};
-                mapped_comparator_cb->channel_tolerance = channel_tolerance;
-                D3D12_RANGE const written_range{0, sizeof(ComparatorConstantBuffer)};
-                comparator_cb->Unmap(0, &written_range);
+                comparator_cb->width_height = {static_cast<uint32_t>(expected_desc.Width), expected_desc.Height};
+                comparator_cb->channel_tolerance = channel_tolerance;
+                comparator_cb.UploadToGpu();
             }
 
             ComPtr<ID3D12RootSignature> root_sig;
@@ -630,7 +581,7 @@ namespace GoldenSun
             cmd_list_->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             cmd_list_->SetComputeRootDescriptorTable(0, expected_srv_gpu_desc_handle);
             cmd_list_->SetComputeRootDescriptorTable(1, result_uav_cpu_desc_handle);
-            cmd_list_->SetComputeRootConstantBufferView(2, comparator_cb->GetGPUVirtualAddress());
+            cmd_list_->SetComputeRootConstantBufferView(2, comparator_cb.Resource()->GetGPUVirtualAddress());
 
             uint32_t constexpr TILE_DIM = 16;
             cmd_list_->Dispatch((static_cast<uint32_t>(expected_desc.Width) + (TILE_DIM - 1)) / TILE_DIM,
@@ -639,24 +590,19 @@ namespace GoldenSun
             D3D12_RESOURCE_BARRIER barrier;
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier.Transition.pResource = channel_error_buff.Get();
+            barrier.Transition.pResource = channel_error_buff.Resource();
             barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
             barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
             barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
             cmd_list_->ResourceBarrier(1, &barrier);
 
-            cmd_list_->CopyBufferRegion(channel_error_cpu_buff.Get(), 0, channel_error_buff.Get(), 0, sizeof(XMFLOAT4));
+            cmd_list_->CopyBufferRegion(channel_error_cpu_buff.Resource(), 0, channel_error_buff.Resource(), 0, sizeof(XMFLOAT4));
 
             this->ExecuteCommandList();
             this->WaitForGpu();
 
             uint32_t channel_errors[4];
-            XMUINT4* buff_data;
-            D3D12_RANGE read_range{0, sizeof(XMUINT4)};
-            TIFHR(channel_error_cpu_buff->Map(0, &read_range, reinterpret_cast<void**>(&buff_data)));
-            memcpy(channel_errors, buff_data, sizeof(XMUINT4));
-            D3D12_RANGE write_range{0, 0};
-            channel_error_cpu_buff->Unmap(0, &write_range);
+            memcpy(channel_errors, channel_error_cpu_buff.MappedData<uint32_t>(), sizeof(XMUINT4));
 
             bool match = true;
             float const scale = 1.0f / 255.0f;

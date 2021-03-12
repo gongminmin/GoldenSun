@@ -134,20 +134,10 @@ namespace GoldenSun
         auto CreateUploadBuffer = [this, &upload_heap_prop](void const* data, uint32_t data_size, wchar_t const* name) {
             ComPtr<ID3D12Resource> ret;
 
-            D3D12_RESOURCE_DESC const buffer_desc = {D3D12_RESOURCE_DIMENSION_BUFFER, 0, data_size, 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0},
-                D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE};
-            TIFHR(device_->CreateCommittedResource(&upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr, UuidOf<ID3D12Resource>(), ret.PutVoid()));
-            if (name != nullptr)
-            {
-                ret->SetName(name);
-            }
+            GpuUploadBuffer buffer(device_.Get(), data_size, name);
+            ret = buffer.Resource();
 
-            D3D12_RANGE const read_range{0, 0};
-            void* mapped_data;
-            ret->Map(0, &read_range, &mapped_data);
-            memcpy(mapped_data, data, data_size);
-            ret->Unmap(0, nullptr);
+            memcpy(buffer.MappedData<void>(), data, data_size);
 
             return ret;
         };
