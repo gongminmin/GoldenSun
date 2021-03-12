@@ -146,8 +146,14 @@ namespace GoldenSun
         auto ib = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
         auto mb = CreateUploadBuffer(cube_mtls, sizeof(cube_mtls), L"Material Buffer");
 
-        golden_sun_engine_->Geometry(vb.Get(), static_cast<uint32_t>(std::size(cube_vertices)), ib.Get(),
-            static_cast<uint32_t>(std::size(cube_indices)), mb.Get(), 1);
+        std::vector<std::unique_ptr<Mesh>> meshes;
+        {
+            auto& mesh = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
+                DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
+            mesh->AddGeometry(vb.Get(), ib.Get(), 0);
+        }
+
+        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 1);
     }
 
     void GoldenSunApp::Active(bool active)

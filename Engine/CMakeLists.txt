@@ -1,8 +1,10 @@
 set(lib_name "GoldenSunEngine")
 
 set(source_files
+    Source/AccelerationStructure.cpp
     Source/ErrorHandling.cpp
     Source/Engine.cpp
+    Source/Mesh.cpp
     Source/Util.cpp
 )
 
@@ -12,12 +14,14 @@ set(header_files
     Include/GoldenSun/ErrorHandling.hpp
     Include/GoldenSun/Engine.hpp
     Include/GoldenSun/GoldenSun.hpp
+    Include/GoldenSun/Mesh.hpp
     Include/GoldenSun/SmartPtrHelper.hpp
     Include/GoldenSun/Util.hpp
     Include/GoldenSun/Uuid.hpp
 )
 
 set(internal_header_files
+    Source/AccelerationStructure.hpp
     Source/pch.hpp
 )
 
