@@ -4,7 +4,7 @@
 #include <sstream>
 #include <string_view>
 
-#include <GoldenSun/GoldenSunEngine.hpp>
+#include <GoldenSun/GoldenSun.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
 
@@ -91,6 +91,6 @@ namespace GoldenSun
         DirectX::XMFLOAT3 light_pos_;
         DirectX::XMFLOAT3 light_color_;
 
-        std::unique_ptr<GoldenSunEngine> golden_sun_engine_;
+        std::unique_ptr<Engine> golden_sun_engine_;
     };
 } // namespace GoldenSun

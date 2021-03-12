@@ -2,7 +2,7 @@ set(lib_name "GoldenSunEngine")
 
 set(source_files
     Source/ErrorHandling.cpp
-    Source/GoldenSunEngine.cpp
+    Source/Engine.cpp
     Source/Util.cpp
 )
 
@@ -10,10 +10,14 @@ set(header_files
     Include/GoldenSun/Base.hpp
     Include/GoldenSun/ComPtr.hpp
     Include/GoldenSun/ErrorHandling.hpp
-    Include/GoldenSun/GoldenSunEngine.hpp
+    Include/GoldenSun/Engine.hpp
+    Include/GoldenSun/GoldenSun.hpp
     Include/GoldenSun/SmartPtrHelper.hpp
     Include/GoldenSun/Util.hpp
     Include/GoldenSun/Uuid.hpp
+)
+
+set(internal_header_files
     Source/pch.hpp
 )
 
@@ -23,10 +27,11 @@ set(shader_files
 
 source_group("Source Files" FILES ${source_files})
 source_group("Header Files" FILES ${header_files})
+source_group("Internal Header Files" FILES ${internal_header_files})
 source_group("Shader Files" FILES ${shader_files})
 
 add_library(${lib_name} SHARED
-    ${source_files} ${header_files} ${shader_files}
+    ${source_files} ${header_files} ${internal_header_files} ${shader_files}
 )
 
 GoldenSunAddShaderFile(Source/RayTracing.hlsl "lib" "")

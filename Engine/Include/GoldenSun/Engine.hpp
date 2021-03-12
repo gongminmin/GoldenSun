@@ -26,10 +26,10 @@ namespace GoldenSun
         DirectX::XMFLOAT4 albedo;
     };
 
-    class GOLDEN_SUN_API GoldenSunEngine
+    class GOLDEN_SUN_API Engine
     {
     public:
-        virtual ~GoldenSunEngine();
+        virtual ~Engine();
 
         virtual void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format) = 0;
         virtual void Geometry(ID3D12Resource* vb, uint32_t num_vertices, ID3D12Resource* ib, uint32_t num_indices, ID3D12Resource* mb,
@@ -43,5 +43,5 @@ namespace GoldenSun
         virtual ID3D12Resource* Output() const noexcept = 0;
     };
 
-    GOLDEN_SUN_API std::unique_ptr<GoldenSunEngine> CreateGoldenSunEngineD3D12(ID3D12CommandQueue* cmd_queue);
+    GOLDEN_SUN_API std::unique_ptr<Engine> CreateEngineD3D12(ID3D12CommandQueue* cmd_queue);
 } // namespace GoldenSun

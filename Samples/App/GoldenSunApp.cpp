@@ -46,7 +46,7 @@ namespace GoldenSun
         this->CreateDeviceResources();
         this->CreateWindowSizeDependentResources();
 
-        golden_sun_engine_ = CreateGoldenSunEngineD3D12(cmd_queue_.Get());
+        golden_sun_engine_ = CreateEngineD3D12(cmd_queue_.Get());
         golden_sun_engine_->RenderTarget(width_, height_, back_buffer_fmt_);
 
         this->InitializeScene();

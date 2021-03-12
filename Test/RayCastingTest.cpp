@@ -1,6 +1,6 @@
 #include "GoldenSunTest.hpp"
 
-#include <GoldenSun/GoldenSunEngine.hpp>
+#include <GoldenSun/GoldenSun.hpp>
 #include <GoldenSun/Util.hpp>
 
 #include <gtest/gtest.h>
@@ -14,11 +14,11 @@ public:
     void SetUp() override
     {
         auto& test_env = TestEnv();
-        golden_sun_engine_ = CreateGoldenSunEngineD3D12(test_env.CommandQueue());
+        golden_sun_engine_ = CreateEngineD3D12(test_env.CommandQueue());
     }
 
 protected:
-    std::unique_ptr<GoldenSunEngine> golden_sun_engine_;
+    std::unique_ptr<Engine> golden_sun_engine_;
 };
 
 TEST_F(RayCastingTest, SimpleRayCasting)

@@ -1,6 +1,6 @@
 #include "pch.hpp"
 
-#include <GoldenSun/GoldenSunEngine.hpp>
+#include <GoldenSun/Engine.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
 
@@ -547,7 +547,7 @@ namespace
         uint32_t padding[3];
     };
 
-    class GoldenSunEngineD3D12 : public GoldenSunEngine
+    class EngineD3D12 : public Engine
     {
         struct Buffer
         {
@@ -578,7 +578,7 @@ namespace
         }
 
     public:
-        explicit GoldenSunEngineD3D12(ID3D12CommandQueue* cmd_queue) : cmd_queue_(cmd_queue)
+        explicit EngineD3D12(ID3D12CommandQueue* cmd_queue) : cmd_queue_(cmd_queue)
         {
             cmd_queue_->GetDevice(UuidOf<ID3D12Device5>(), device_.PutVoid());
 
@@ -608,7 +608,7 @@ namespace
             this->BuildShaderTables();
         }
 
-        ~GoldenSunEngineD3D12() override
+        ~EngineD3D12() override
         {
             this->ReleaseWindowSizeDependentResources();
         }
@@ -648,9 +648,9 @@ namespace
 
         void Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane) override
         {
-            eye_ = XMLoadFloat3(&eye);
-            look_at_ = XMLoadFloat3(&look_at);
-            up_ = XMLoadFloat3(&up);
+            eye_ = eye;
+            look_at_ = look_at;
+            up_ = up;
 
             fov_ = fov;
             near_plane_ = near_plane;
@@ -659,8 +659,8 @@ namespace
 
         void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color) override
         {
-            light_pos_ = {pos.x, pos.y, pos.z, 1};
-            light_color_ = {color.x, color.y, color.z, 1};
+            light_pos_ = pos;
+            light_color_ = color;
         }
 
         void Render(ID3D12GraphicsCommandList4* cmd_list) override
@@ -668,15 +668,15 @@ namespace
             cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
-                XMStoreFloat4(&mapped_constant_data_[frame_index_].camera_pos, eye_);
+                mapped_constant_data_[frame_index_].camera_pos = XMFLOAT4(eye_.x, eye_.y, eye_.z, 1);
 
-                auto const view = XMMatrixLookAtLH(eye_, look_at_, up_);
+                auto const view = XMMatrixLookAtLH(XMLoadFloat3(&eye_), XMLoadFloat3(&look_at_), XMLoadFloat3(&up_));
                 auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
                 XMStoreFloat4x4(
                     &mapped_constant_data_[frame_index_].inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
-                mapped_constant_data_[frame_index_].light_pos = light_pos_;
-                mapped_constant_data_[frame_index_].light_color = light_color_;
+                mapped_constant_data_[frame_index_].light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
+                mapped_constant_data_[frame_index_].light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
 
                 auto const cb_gpu_addr = per_frame_constants_->GetGPUVirtualAddress() + frame_index_ * sizeof(mapped_constant_data_[0]);
                 cmd_list->SetComputeRootConstantBufferView(ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), cb_gpu_addr);
@@ -1149,25 +1149,25 @@ namespace
         ComPtr<ID3D12Resource> hit_group_shader_table_;
         ComPtr<ID3D12Resource> miss_shader_table_;
 
-        XMVECTOR eye_;
-        XMVECTOR look_at_;
-        XMVECTOR up_;
+        XMFLOAT3 eye_;
+        XMFLOAT3 look_at_;
+        XMFLOAT3 up_;
 
         float fov_;
         float near_plane_;
         float far_plane_;
 
-        XMFLOAT4 light_pos_;
-        XMFLOAT4 light_color_;
+        XMFLOAT3 light_pos_;
+        XMFLOAT3 light_color_;
     };
 } // namespace
 
 namespace GoldenSun
 {
-    GoldenSunEngine::~GoldenSunEngine() = default;
+    Engine::~Engine() = default;
 
-    std::unique_ptr<GoldenSunEngine> CreateGoldenSunEngineD3D12(ID3D12CommandQueue* cmd_queue)
+    std::unique_ptr<Engine> CreateEngineD3D12(ID3D12CommandQueue* cmd_queue)
     {
-        return std::make_unique<GoldenSunEngineD3D12>(cmd_queue);
+        return std::make_unique<EngineD3D12>(cmd_queue);
     }
 } // namespace GoldenSun

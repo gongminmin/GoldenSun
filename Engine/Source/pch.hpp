@@ -13,5 +13,5 @@
 
 #include <DirectXMath.h>
 
-#include <GoldenSun/Base.hpp>
 #include <GoldenSun/ComPtr.hpp>
+#include <GoldenSun/GoldenSun.hpp>
