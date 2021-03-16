@@ -8,7 +8,7 @@ TEST(TestFrameworkTest, ExactMatch)
 {
     auto& test_env = TestEnv();
 
-    auto image = test_env.LoadTexture(EXPECTED_DIR "SIPI_Jelly_Beans_4.1.07.jpg");
+    auto image = test_env.LoadTexture(EXPECTED_DIR "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
 
     auto result = test_env.CompareImages(image.Get(), image.Get(), 0.0f);
 
@@ -27,7 +27,7 @@ TEST(TestFrameworkTest, TolerantMatch)
 {
     auto& test_env = TestEnv();
 
-    auto expected_image = test_env.LoadTexture(EXPECTED_DIR "SIPI_Jelly_Beans_4.1.07.jpg");
+    auto expected_image = test_env.LoadTexture(EXPECTED_DIR "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
     auto actual_image = test_env.CloneTexture(expected_image.Get());
 
     uint32_t constexpr sabotage_x = 53;
@@ -58,7 +58,7 @@ TEST(TestFrameworkTest, Unmatch)
 {
     auto& test_env = TestEnv();
 
-    auto expected_image = test_env.LoadTexture(EXPECTED_DIR "SIPI_Jelly_Beans_4.1.07.jpg");
+    auto expected_image = test_env.LoadTexture(EXPECTED_DIR "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
     auto actual_image = test_env.CloneTexture(expected_image.Get());
 
     uint32_t constexpr sabotage_x = 53;

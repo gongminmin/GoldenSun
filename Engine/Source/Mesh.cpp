@@ -71,6 +71,11 @@ namespace
             return geometries_[index].ib.resource.Get();
         }
 
+        uint32_t MaterialId(uint32_t index) const noexcept
+        {
+            return geometries_[index].material_id;
+        }
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const override
         {
             std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> ret;

@@ -633,7 +633,7 @@ namespace GoldenSun
         if (!expected_image)
         {
             std::string const expected_file = result_dir + expected_name + ".png";
-            std::cout << "Saving expected image to " << expected_file;
+            std::cout << "Saving expected image to " << expected_file << '\n';
             this->SaveTexture(actual_image, expected_file.c_str());
         }
         else

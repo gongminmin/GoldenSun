@@ -45,6 +45,8 @@ namespace GoldenSun
         virtual uint32_t NumIndices(uint32_t index) const noexcept = 0;
         virtual ID3D12Resource* IndexBuffer(uint32_t index) const noexcept = 0;
 
+        virtual uint32_t MaterialId(uint32_t index) const noexcept = 0;
+
         virtual std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const = 0;
     };
 

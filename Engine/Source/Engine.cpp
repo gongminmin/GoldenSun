@@ -61,7 +61,7 @@ namespace
         {
         }
 
-        void CopyTo(void* dest) const noexcept
+        void CopyTo(void* dest) const
         {
             uint8_t* u8_dest = static_cast<uint8_t*>(dest);
             memcpy(u8_dest, shader_identifier.ptr, shader_identifier.size);
@@ -89,9 +89,9 @@ namespace
         {
         }
 
-        ShaderTable(ID3D12Device5* device, uint32_t num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
+        ShaderTable(ID3D12Device5* device, uint32_t max_num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
             : shader_record_size_(Align<D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT>(shader_record_size)),
-              buffer_(device, num_shader_records * shader_record_size_, resource_name)
+              buffer_(device, max_num_shader_records * shader_record_size_, resource_name)
         {
             mapped_shader_records_ = buffer_.MappedData<uint8_t>();
         }
@@ -105,14 +105,26 @@ namespace
             return buffer_.Resource();
         }
 
-        void push_back(ShaderRecord const& shader_record) noexcept
+        void push_back(ShaderRecord const& shader_record)
         {
             shader_record.CopyTo(mapped_shader_records_);
             mapped_shader_records_ += shader_record_size_;
+            ++num_shader_records_;
+        }
+
+        uint32_t ShaderRecordSize() const noexcept
+        {
+            return shader_record_size_;
+        }
+
+        uint32_t NumShaderRecords() const noexcept
+        {
+            return num_shader_records_;
         }
 
     private:
         uint32_t shader_record_size_;
+        uint32_t num_shader_records_ = 0;
 
         GpuUploadBuffer buffer_;
         uint8_t* mapped_shader_records_;
@@ -540,6 +552,36 @@ namespace
         uint32_t padding[3];
     };
 
+    struct GlobalRootSignature
+    {
+        enum class Slot : uint32_t
+        {
+            OutputView = 0,
+            AccelerationStructure,
+            SceneConstant,
+            MaterialBuffers,
+            Count
+        };
+    };
+
+    struct LocalRootSignature
+    {
+        enum class Slot : uint32_t
+        {
+            PrimitiveConstant = 0,
+            VertexBuffer,
+            IndexBuffer,
+            Count
+        };
+
+        struct RootArguments
+        {
+            PrimitiveConstantBuffer cb;
+            D3D12_GPU_DESCRIPTOR_HANDLE vb_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE ib_gpu_handle;
+        };
+    };
+
     class EngineD3D12 : public Engine
     {
         struct Buffer
@@ -547,21 +589,6 @@ namespace
             ComPtr<ID3D12Resource> resource;
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle;
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor_handle;
-        };
-
-        enum class GlobalRootSignatureParams : uint32_t
-        {
-            OutputViewSlot = 0,
-            AccelerationStructureSlot,
-            SceneConstantSlot,
-            VertexBuffersSlot,
-            Count
-        };
-
-        enum class LocalRootSignatureParams : uint32_t
-        {
-            PrimitiveConstantSlot = 0,
-            Count
         };
 
         template <typename T>
@@ -594,8 +621,6 @@ namespace
             this->CreateRootSignatures();
             this->CreateRayTracingPipelineStateObject();
             this->CreateDescriptorHeap();
-
-            this->BuildShaderTables();
         }
 
         ~EngineD3D12() override
@@ -621,31 +646,43 @@ namespace
             }
         }
 
-        void Geometry(std::unique_ptr<Mesh> const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials) override
+        void Geometry(std::unique_ptr<Mesh> const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb,
+            uint32_t num_materials) override
         {
-            // TODO: Support meshes from different vbs/ibs
-            vertex_buffer_.resource = meshes[0]->VertexBuffer(0);
-            index_buffer_.resource = meshes[0]->IndexBuffer(0);
             material_buffer_.resource = mb;
-
-            uint32_t const descriptor_index_vb =
-                this->CreateBufferSrv(vertex_buffer_, meshes[0]->NumVertices(0), meshes[0]->VertexStrideInBytes());
-            uint32_t const descriptor_index_ib =
-                this->CreateBufferSrv(index_buffer_, meshes[0]->NumIndices(0) * meshes[0]->IndexStrideInBytes() / 4, 0);
             uint32_t const descriptor_index_mb = this->CreateBufferSrv(material_buffer_, num_materials, sizeof(Material));
-            Verify((descriptor_index_ib == descriptor_index_vb + 1) && (descriptor_index_mb == descriptor_index_ib + 1));
 
             {
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
+                    auto& vb = vertex_buffers_.emplace_back();
+                    vb.resource = meshes[i]->VertexBuffer(0);
+                    uint32_t const descriptor_index_vb =
+                        this->CreateBufferSrv(vb, meshes[i]->NumVertices(0), meshes[i]->VertexStrideInBytes());
+
+                    auto& ib = index_buffers_.emplace_back();
+                    ib.resource = meshes[i]->IndexBuffer(0);
+                    uint32_t const descriptor_index_ib =
+                        this->CreateBufferSrv(ib, meshes[i]->NumIndices(0) * meshes[i]->IndexStrideInBytes() / 4, 0);
+
+                    Verify(descriptor_index_ib == descriptor_index_vb + 1);
+
                     bool update_on_build = false;
-                    uint32_t const as_id =
-                        acceleration_structure_->AddBottomLevelAS(device_.Get(), build_flags, *meshes[i], update_on_build, update_on_build);
-                    acceleration_structure_->AddBottomLevelASInstance(as_id);
+                    acceleration_structure_->AddBottomLevelAS(device_.Get(), build_flags, *meshes[i], update_on_build, update_on_build);
                 }
             }
+
+            this->BuildShaderTables(meshes);
+
+            {
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    acceleration_structure_->AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&transforms[i]));
+                }
+            }
+
             {
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
@@ -692,27 +729,27 @@ namespace
                 per_frame_constants_.UploadToGpu(frame_index_);
 
                 cmd_list->SetComputeRootConstantBufferView(
-                    ConvertToUint(GlobalRootSignatureParams::SceneConstantSlot), per_frame_constants_.GpuVirtualAddress(frame_index_));
+                    ConvertToUint(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index_));
             }
 
             ID3D12DescriptorHeap* heaps[] = {descriptor_heap_.Get()};
             cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             cmd_list->SetComputeRootDescriptorTable(
-                ConvertToUint(GlobalRootSignatureParams::VertexBuffersSlot), vertex_buffer_.gpu_descriptor_handle);
-            cmd_list->SetComputeRootDescriptorTable(
-                ConvertToUint(GlobalRootSignatureParams::OutputViewSlot), ray_tracing_output_resource_uav_gpu_descriptor_handle_);
-            cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignatureParams::AccelerationStructureSlot),
+                ConvertToUint(GlobalRootSignature::Slot::OutputView), ray_tracing_output_resource_uav_gpu_descriptor_handle_);
+            cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_->TopLevelASResource()->GetGPUVirtualAddress());
+            cmd_list->SetComputeRootDescriptorTable(
+                ConvertToUint(GlobalRootSignature::Slot::MaterialBuffers), material_buffer_.gpu_descriptor_handle);
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
             dispatch_desc.HitGroupTable.StartAddress = hit_group_shader_table_->GetGPUVirtualAddress();
             dispatch_desc.HitGroupTable.SizeInBytes = hit_group_shader_table_->GetDesc().Width;
-            dispatch_desc.HitGroupTable.StrideInBytes = dispatch_desc.HitGroupTable.SizeInBytes;
+            dispatch_desc.HitGroupTable.StrideInBytes = hit_group_shader_table_stride_;
 
             dispatch_desc.MissShaderTable.StartAddress = miss_shader_table_->GetGPUVirtualAddress();
             dispatch_desc.MissShaderTable.SizeInBytes = miss_shader_table_->GetDesc().Width;
-            dispatch_desc.MissShaderTable.StrideInBytes = dispatch_desc.MissShaderTable.SizeInBytes;
+            dispatch_desc.MissShaderTable.StrideInBytes = miss_shader_table_stride_;
 
             dispatch_desc.RayGenerationShaderRecord.StartAddress = ray_gen_shader_table_->GetGPUVirtualAddress();
             dispatch_desc.RayGenerationShaderRecord.SizeInBytes = ray_gen_shader_table_->GetDesc().Width;
@@ -784,14 +821,14 @@ namespace
         {
             {
                 D3D12_DESCRIPTOR_RANGE const ranges[] = {
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // Output
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // Material
                 };
 
                 D3D12_ROOT_PARAMETER const root_params[] = {
                     CreateRootParameterAsDescriptorTable(&ranges[0], 1),
-                    CreateRootParameterAsShaderResourceView(0),
-                    CreateRootParameterAsConstantBufferView(0),
+                    CreateRootParameterAsShaderResourceView(0), // AccelerationStructure
+                    CreateRootParameterAsConstantBufferView(0), // scene_cb
                     CreateRootParameterAsDescriptorTable(&ranges[1], 1),
                 };
 
@@ -802,17 +839,19 @@ namespace
             }
 
             {
+                D3D12_DESCRIPTOR_RANGE const ranges[] = {
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // VB
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // IB
+                };
+
                 D3D12_ROOT_PARAMETER const root_params[] = {
-                    CreateRootParameterAsConstants(Align<sizeof(uint32_t)>(sizeof(PrimitiveConstantBuffer)), 1),
+                    CreateRootParameterAsConstants(Align<sizeof(uint32_t)>(sizeof(PrimitiveConstantBuffer)) / sizeof(uint32_t), 0, 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[0], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[1], 1),
                 };
 
                 D3D12_ROOT_SIGNATURE_DESC const local_root_signature_desc = {
-                    static_cast<uint32_t>(std::size(root_params)),
-                    root_params,
-                    0,
-                    nullptr,
-                    D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE,
-                };
+                    static_cast<uint32_t>(std::size(root_params)), root_params, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE};
 
                 ray_tracing_local_root_signature_ = this->SerializeAndCreateRayTracingRootSignature(local_root_signature_desc);
             }
@@ -863,7 +902,7 @@ namespace
         void CreateDescriptorHeap()
         {
             D3D12_DESCRIPTOR_HEAP_DESC desc_heap_desc{};
-            desc_heap_desc.NumDescriptors = 4; // Vertex buffer srv, index buffer srv, material buffer srv, output uav
+            desc_heap_desc.NumDescriptors = 256;
             desc_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             desc_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             desc_heap_desc.NodeMask = 0;
@@ -873,7 +912,7 @@ namespace
             descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
-        void BuildShaderTables()
+        void BuildShaderTables(std::unique_ptr<Mesh> const* meshes)
         {
             void* ray_gen_shader_identifier;
             void* hit_group_shader_identifier;
@@ -892,6 +931,7 @@ namespace
                 uint32_t const shader_record_size = shader_identifier_size;
                 ShaderTable ray_gen_shader_table(device_.Get(), num_shader_records, shader_record_size, L"RayGenShaderTable");
                 ray_gen_shader_table.push_back(ShaderRecord(ray_gen_shader_identifier, shader_identifier_size));
+
                 ray_gen_shader_table_ = ray_gen_shader_table.Resource();
             }
             {
@@ -899,17 +939,33 @@ namespace
                 uint32_t const shader_record_size = shader_identifier_size;
                 ShaderTable miss_shader_table(device_.Get(), num_shader_records, shader_record_size, L"MissShaderTable");
                 miss_shader_table.push_back(ShaderRecord(miss_shader_identifier, shader_identifier_size));
+
+                miss_shader_table_stride_ = miss_shader_table.ShaderRecordSize();
                 miss_shader_table_ = miss_shader_table.Resource();
             }
-            {
-                PrimitiveConstantBuffer root_arguments;
-                root_arguments.material_id = 0;
 
-                uint32_t const num_shader_records = 1;
-                uint32_t const shader_record_size = shader_identifier_size + sizeof(root_arguments);
+            {
+                // TODO: Supports instancing
+                uint32_t const num_meshes = acceleration_structure_->NumBottomLevelsASs();
+                uint32_t const num_shader_records = num_meshes;
+                uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
                 ShaderTable hit_group_shader_table(device_.Get(), num_shader_records, shader_record_size, L"HitGroupShaderTable");
-                hit_group_shader_table.push_back(
-                    ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    auto& geometry = acceleration_structure_->BottomLevelAS(i);
+                    uint32_t const shader_record_offset = hit_group_shader_table.NumShaderRecords();
+                    geometry.InstanceContributionToHitGroupIndex(shader_record_offset);
+
+                    LocalRootSignature::RootArguments root_arguments;
+                    root_arguments.cb.material_id = meshes[i]->MaterialId(0);
+                    root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
+                    root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
+
+                    hit_group_shader_table.push_back(
+                        ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                }
+
+                hit_group_shader_table_stride_ = hit_group_shader_table.ShaderRecordSize();
                 hit_group_shader_table_ = hit_group_shader_table.Resource();
             }
         }
@@ -973,9 +1029,9 @@ namespace
         uint32_t descriptors_allocated_ = 0;
         uint32_t descriptor_size_;
 
-        Buffer vertex_buffer_;
-        Buffer index_buffer_;
         Buffer material_buffer_;
+        std::vector<Buffer> vertex_buffers_;
+        std::vector<Buffer> index_buffers_;
 
         std::unique_ptr<RaytracingAccelerationStructureManager> acceleration_structure_;
 
@@ -989,7 +1045,9 @@ namespace
         static constexpr wchar_t c_miss_shader_name[] = L"MissShader";
         ComPtr<ID3D12Resource> ray_gen_shader_table_;
         ComPtr<ID3D12Resource> hit_group_shader_table_;
+        uint32_t hit_group_shader_table_stride_ = 0xFFFFFFFFU;
         ComPtr<ID3D12Resource> miss_shader_table_;
+        uint32_t miss_shader_table_stride_ = 0xFFFFFFFFU;
 
         XMFLOAT3 eye_;
         XMFLOAT3 look_at_;

@@ -43,6 +43,15 @@ namespace GoldenSun
         return *this;
     }
 
+    void AccelerationStructure::AddBarrier(ID3D12GraphicsCommandList4* cmd_list) noexcept
+    {
+        D3D12_RESOURCE_BARRIER barrier;
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.UAV.pResource = acceleration_structure_.Resource();
+        cmd_list->ResourceBarrier(1, &barrier);
+    }
+
     void AccelerationStructure::CreateResource(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
         D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, wchar_t const* name)
     {
@@ -135,6 +144,7 @@ namespace GoldenSun
         }
 
         cmd_list->BuildRaytracingAccelerationStructure(&bottom_level_build_desc, 0, nullptr);
+        this->AddBarrier(cmd_list);
 
         dirty_ = false;
         is_built_ = true;
@@ -173,6 +183,7 @@ namespace GoldenSun
         top_level_inputs.InstanceDescs = bottom_level_as_instance_descs;
 
         cmd_list->BuildRaytracingAccelerationStructure(&top_level_build_desc, 0, nullptr);
+        this->AddBarrier(cmd_list);
 
         dirty_ = false;
         is_built_ = true;
@@ -245,35 +256,19 @@ namespace GoldenSun
         bottom_level_as_instance_descs_.UploadToGpu(frame_index);
 
         {
-            std::vector<D3D12_RESOURCE_BARRIER> barriers;
             for (auto& bottom_level_as : bottom_level_as_)
             {
                 if (force_build || bottom_level_as.Dirty())
                 {
                     D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr{};
                     bottom_level_as.Build(cmd_list, scratch_buffer_.Resource(), base_geometry_transform_gpu_addr);
-
-                    auto& barrier = barriers.emplace_back();
-                    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-                    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-                    barrier.UAV.pResource = bottom_level_as.Resource();
                 }
-            }
-            if (!barriers.empty())
-            {
-                cmd_list->ResourceBarrier(static_cast<uint32_t>(barriers.size()), barriers.data());
             }
         }
 
         {
             D3D12_GPU_VIRTUAL_ADDRESS instance_descs = bottom_level_as_instance_descs_.GpuVirtualAddress(frame_index);
             top_level_as_->Build(cmd_list, this->NumBottomLevelASInstances(), instance_descs, scratch_buffer_.Resource());
-
-            D3D12_RESOURCE_BARRIER barrier;
-            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier.UAV.pResource = top_level_as_->Resource();
-            cmd_list->ResourceBarrier(1, &barrier);
         }
     }
 } // namespace GoldenSun

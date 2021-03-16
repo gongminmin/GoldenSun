@@ -126,7 +126,17 @@ namespace GoldenSun
         Index const cube_indices[] = {
             3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
 
-        Material const cube_mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
+        float const sqrt3_2 = sqrt(3.0f) / 2;
+        Vertex const tetrahedron_vertices[] = {
+            {{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+            {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+            {{+sqrt3_2, 0.0f, -0.5f}, {sqrt3_2, 0.0f, -0.5f}},
+            {{-sqrt3_2, 0.0f, -0.5f}, {sqrt3_2, 0.0f, -0.5f}},
+        };
+
+        Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
+
+        Material const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
 
         D3D12_HEAP_PROPERTIES const upload_heap_prop = {
             D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -142,18 +152,32 @@ namespace GoldenSun
             return ret;
         };
 
-        auto vb = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer");
-        auto ib = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
-        auto mb = CreateUploadBuffer(cube_mtls, sizeof(cube_mtls), L"Material Buffer");
+        auto mb = CreateUploadBuffer(mtls, sizeof(mtls), L"Material Buffer");
+
+        auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
+        auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
+        auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
+        auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
         std::vector<std::unique_ptr<Mesh>> meshes;
+        std::vector<XMFLOAT4X4> transforms;
         {
-            auto& mesh = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
+            auto& mesh0 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
                 DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-            mesh->AddGeometry(vb.Get(), ib.Get(), 0);
+            mesh0->AddGeometry(vb0.Get(), ib0.Get(), 0);
+
+            auto& world0 = transforms.emplace_back();
+            XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
+
+            auto& mesh1 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
+                DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
+            mesh1->AddGeometry(vb1.Get(), ib1.Get(), 1);
+
+            auto& world1 = transforms.emplace_back();
+            XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
         }
 
-        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 1);
+        golden_sun_engine_->Geometry(meshes.data(), transforms.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 2);
     }
 
     void GoldenSunApp::Active(bool active)

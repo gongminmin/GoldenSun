@@ -20,7 +20,8 @@ namespace GoldenSun
         virtual ~Engine();
 
         virtual void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format) = 0;
-        virtual void Geometry(std::unique_ptr<Mesh> const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials) = 0;
+        virtual void Geometry(std::unique_ptr<Mesh> const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb,
+            uint32_t num_materials) = 0;
         virtual void Camera(DirectX::XMFLOAT3 const& eye, DirectX::XMFLOAT3 const& look_at, DirectX::XMFLOAT3 const& up, float fov,
             float near_plane, float far_plane) = 0;
         virtual void Light(DirectX::XMFLOAT3 const& pos, DirectX::XMFLOAT3 const& color) = 0;

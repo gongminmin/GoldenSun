@@ -25,6 +25,8 @@ namespace GoldenSun
         AccelerationStructure(AccelerationStructure&& other) noexcept;
         AccelerationStructure& operator=(AccelerationStructure&& other) noexcept;
 
+        void AddBarrier(ID3D12GraphicsCommandList4* cmd_list) noexcept;
+
         uint64_t RequiredScratchSize() const noexcept
         {
             return std::max(prebuild_info_.ScratchDataSizeInBytes, prebuild_info_.UpdateScratchDataSizeInBytes);
@@ -141,6 +143,20 @@ namespace GoldenSun
             bool allow_update = false, bool perform_update_on_build = false, wchar_t const* resource_name = nullptr);
 
         void Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t frame_index, bool force_build = false);
+
+        uint32_t NumBottomLevelsASs() const noexcept
+        {
+            return static_cast<uint32_t>(bottom_level_as_.size());
+        }
+
+        BottomLevelAccelerationStructure& BottomLevelAS(uint32_t index) noexcept
+        {
+            return bottom_level_as_[index];
+        }
+        BottomLevelAccelerationStructure const& BottomLevelAS(uint32_t index) const noexcept
+        {
+            return bottom_level_as_[index];
+        }
 
         ID3D12Resource* TopLevelASResource() const noexcept
         {
