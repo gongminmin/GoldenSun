@@ -128,10 +128,10 @@ namespace GoldenSun
 
         float const sqrt3_2 = sqrt(3.0f) / 2;
         Vertex const tetrahedron_vertices[] = {
-            {{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-            {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-            {{+sqrt3_2, 0.0f, -0.5f}, {sqrt3_2, 0.0f, -0.5f}},
-            {{-sqrt3_2, 0.0f, -0.5f}, {sqrt3_2, 0.0f, -0.5f}},
+            {{0.0f, 2.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+            {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 1.0f}},
+            {{+sqrt3_2 * 2, 0.0f, -1.0f}, {sqrt3_2, 0.0f, -0.5f}},
+            {{-sqrt3_2 * 2, 0.0f, -1.0f}, {sqrt3_2, 0.0f, -0.5f}},
         };
 
         Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
@@ -160,24 +160,29 @@ namespace GoldenSun
         auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
         std::vector<Mesh> meshes;
-        std::vector<XMFLOAT4X4> transforms;
         {
             auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
                 static_cast<uint32_t>(sizeof(uint16_t)));
             mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
+            mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
-            auto& world0 = transforms.emplace_back();
+            XMFLOAT4X4 world0;
             XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
+            mesh0.AddInstance(world0);
+
+            XMStoreFloat4x4(&world0, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixRotationX(0.8f) * XMMatrixTranslation(-1.5f, 0, -1.8f));
+            mesh0.AddInstance(world0);
 
             auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
                 static_cast<uint32_t>(sizeof(uint16_t)));
-            mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 1);
+            mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
-            auto& world1 = transforms.emplace_back();
-            XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
+            XMFLOAT4X4 world1;
+            XMStoreFloat4x4(&world1, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
+            mesh1.AddInstance(world1);
         }
 
-        golden_sun_engine_->Geometry(meshes.data(), transforms.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 2);
+        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 2);
     }
 
     void GoldenSunApp::Active(bool active)

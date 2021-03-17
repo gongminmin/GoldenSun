@@ -641,6 +641,8 @@ namespace GoldenSun
             auto result = this->CompareImages(expected_image.Get(), actual_image, channel_tolerance);
             if (result.error_image)
             {
+                this->SaveTexture(expected_image.Get(), result_dir + expected_name + "_expected.png");
+                this->SaveTexture(actual_image, result_dir + expected_name + "_actual.png");
                 this->SaveTexture(result.error_image.Get(), result_dir + expected_name + "_diff.png");
             }
 

@@ -644,7 +644,7 @@ namespace GoldenSun
             }
         }
 
-        void Geometry(Mesh const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
+        void Geometry(Mesh const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
         {
             material_buffer_.resource = mb;
             uint32_t const descriptor_index_mb = this->CreateBufferSrv(material_buffer_, num_materials, sizeof(Material));
@@ -671,12 +671,13 @@ namespace GoldenSun
                 }
             }
 
-            this->BuildShaderTables(meshes);
+            this->BuildShaderTables(meshes, num_meshes);
 
+            for (uint32_t i = 0; i < num_meshes; ++i)
             {
-                for (uint32_t i = 0; i < num_meshes; ++i)
+                for (uint32_t j = 0; j < meshes[i].NumInstances(); ++j)
                 {
-                    acceleration_structure_->AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&transforms[i]));
+                    acceleration_structure_->AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&meshes[i].Transform(j)));
                 }
             }
 
@@ -909,7 +910,7 @@ namespace GoldenSun
             descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
-        void BuildShaderTables(Mesh const* meshes)
+        void BuildShaderTables(Mesh const* meshes, uint32_t num_meshes)
         {
             void* ray_gen_shader_identifier;
             void* hit_group_shader_identifier;
@@ -942,9 +943,12 @@ namespace GoldenSun
             }
 
             {
-                // TODO: Supports instancing
-                uint32_t const num_meshes = acceleration_structure_->NumBottomLevelsASs();
-                uint32_t const num_shader_records = num_meshes;
+                uint32_t num_shader_records = 0;
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    num_shader_records += meshes[i].NumPrimitives();
+                }
+
                 uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
                 ShaderTable hit_group_shader_table(device_.Get(), num_shader_records, shader_record_size, L"HitGroupShaderTable");
                 for (uint32_t i = 0; i < num_meshes; ++i)
@@ -953,13 +957,16 @@ namespace GoldenSun
                     uint32_t const shader_record_offset = hit_group_shader_table.NumShaderRecords();
                     geometry.InstanceContributionToHitGroupIndex(shader_record_offset);
 
-                    LocalRootSignature::RootArguments root_arguments;
-                    root_arguments.cb.material_id = meshes[i].MaterialId(0);
-                    root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
-                    root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
+                    for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
+                    {
+                        LocalRootSignature::RootArguments root_arguments;
+                        root_arguments.cb.material_id = meshes[i].MaterialId(j);
+                        root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
+                        root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
 
-                    hit_group_shader_table.push_back(
-                        ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                        hit_group_shader_table.push_back(
+                            ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                    }
                 }
 
                 hit_group_shader_table_stride_ = hit_group_shader_table.ShaderRecordSize();
@@ -1089,10 +1096,9 @@ namespace GoldenSun
         return impl_->RenderTarget(width, height, format);
     }
 
-    void Engine::Geometry(
-        Mesh const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
+    void Engine::Geometry(Mesh const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
     {
-        return impl_->Geometry(meshes, transforms, num_meshes, mb, num_materials);
+        return impl_->Geometry(meshes, num_meshes, mb, num_materials);
     }
 
     void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
