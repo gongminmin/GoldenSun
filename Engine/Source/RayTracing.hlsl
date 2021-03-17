@@ -59,10 +59,12 @@ float4 CalcLighting(float3 position, float3 normal)
 {
     Material mtl = material_buffer[primitive_cb.material_id];
 
+    float3 const ambient = 0.1f;
+
     float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
     float const n_dot_l = max(0.0f, dot(light_dir, normal));
 
-    return float4(mtl.albedo.rgb * scene_cb.light_color.rgb * n_dot_l, mtl.albedo.a);
+    return float4(mtl.albedo.rgb * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.albedo.a);
 }
 
 struct RayPayload
@@ -107,12 +109,7 @@ void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAt
     float3 const normal = vertex_normals[0] + attr.barycentrics.x * (vertex_normals[1] - vertex_normals[0]) +
                           attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
 
-    float4 color = CalcLighting(hit_position, normal);
-
-    float3 ambient = 0.1f;
-    color.xyz += ambient;
-
-    payload.color = color;
+    payload.color = CalcLighting(hit_position, normal);
 }
 
 [shader("miss")]

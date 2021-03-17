@@ -304,6 +304,9 @@ TEST_F(RayCastingTest, Instancing)
         XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
         mesh0.AddInstance(world0);
 
+        XMStoreFloat4x4(&world0, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixRotationX(0.8f) * XMMatrixTranslation(-1.5f, 0, -1.8f));
+        mesh0.AddInstance(world0);
+
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 2);

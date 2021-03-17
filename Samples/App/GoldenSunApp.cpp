@@ -182,7 +182,7 @@ namespace GoldenSun
             mesh1.AddInstance(world1);
         }
 
-        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), 2);
+        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), static_cast<uint32_t>(std::size(mtls)));
     }
 
     void GoldenSunApp::Active(bool active)
