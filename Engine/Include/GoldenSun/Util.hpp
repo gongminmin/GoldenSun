@@ -8,12 +8,6 @@
 #include <GoldenSun/Base.hpp>
 #include <GoldenSun/ComPtr.hpp>
 
-#pragma warning(disable : 4251)
-
-#define DISALLOW_COPY_AND_ASSIGN(ClassName)     \
-    ClassName(ClassName const& other) = delete; \
-    ClassName& operator=(ClassName const& other) = delete;
-
 namespace GoldenSun
 {
     static constexpr uint32_t FrameCount = 3;

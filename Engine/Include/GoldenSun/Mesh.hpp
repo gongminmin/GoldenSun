@@ -29,27 +29,35 @@ namespace GoldenSun
 
     class GOLDEN_SUN_API Mesh
     {
+        DISALLOW_COPY_AND_ASSIGN(Mesh);
+
     public:
-        virtual ~Mesh();
+        Mesh(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes);
+        ~Mesh() noexcept;
 
-        virtual void AddGeometry(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id) = 0;
-        virtual void AddGeometry(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags) = 0;
+        Mesh(Mesh&& other) noexcept;
+        Mesh& operator=(Mesh&& other) noexcept;
 
-        virtual DXGI_FORMAT VertexFormat() const noexcept = 0;
-        virtual uint32_t VertexStrideInBytes() const noexcept = 0;
-        virtual uint32_t NumVertices(uint32_t index) const noexcept = 0;
-        virtual ID3D12Resource* VertexBuffer(uint32_t index) const noexcept = 0;
+        // TODO: Support adding a region of buffers as a primitive
+        uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id);
+        uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags);
 
-        virtual DXGI_FORMAT IndexFormat() const noexcept = 0;
-        virtual uint32_t IndexStrideInBytes() const noexcept = 0;
-        virtual uint32_t NumIndices(uint32_t index) const noexcept = 0;
-        virtual ID3D12Resource* IndexBuffer(uint32_t index) const noexcept = 0;
+        DXGI_FORMAT VertexFormat() const noexcept;
+        uint32_t VertexStrideInBytes() const noexcept;
+        uint32_t NumVertices(uint32_t primitive_id) const noexcept;
+        ID3D12Resource* VertexBuffer(uint32_t primitive_id) const noexcept;
 
-        virtual uint32_t MaterialId(uint32_t index) const noexcept = 0;
+        DXGI_FORMAT IndexFormat() const noexcept;
+        uint32_t IndexStrideInBytes() const noexcept;
+        uint32_t NumIndices(uint32_t primitive_id) const noexcept;
+        ID3D12Resource* IndexBuffer(uint32_t primitive_id) const noexcept;
 
-        virtual std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const = 0;
+        uint32_t MaterialId(uint32_t primitive_id) const noexcept;
+
+        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const;
+
+    private:
+        class MeshImpl;
+        MeshImpl* impl_;
     };
-
-    GOLDEN_SUN_API std::unique_ptr<Mesh> CreateMeshD3D12(
-        DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes);
 } // namespace GoldenSun

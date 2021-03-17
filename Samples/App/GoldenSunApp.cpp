@@ -46,7 +46,7 @@ namespace GoldenSun
         this->CreateDeviceResources();
         this->CreateWindowSizeDependentResources();
 
-        golden_sun_engine_ = CreateEngineD3D12(cmd_queue_.Get());
+        golden_sun_engine_ = std::make_unique<Engine>(device_.Get(), cmd_queue_.Get());
         golden_sun_engine_->RenderTarget(width_, height_, back_buffer_fmt_);
 
         this->InitializeScene();
@@ -159,19 +159,19 @@ namespace GoldenSun
         auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
         auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
-        std::vector<std::unique_ptr<Mesh>> meshes;
+        std::vector<Mesh> meshes;
         std::vector<XMFLOAT4X4> transforms;
         {
-            auto& mesh0 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
-                DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-            mesh0->AddGeometry(vb0.Get(), ib0.Get(), 0);
+            auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
+                static_cast<uint32_t>(sizeof(uint16_t)));
+            mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
 
             auto& world0 = transforms.emplace_back();
             XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
 
-            auto& mesh1 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
-                DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-            mesh1->AddGeometry(vb1.Get(), ib1.Get(), 1);
+            auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
+                static_cast<uint32_t>(sizeof(uint16_t)));
+            mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
             auto& world1 = transforms.emplace_back();
             XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));

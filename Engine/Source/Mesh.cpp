@@ -2,96 +2,98 @@
 
 #include <GoldenSun/Engine.hpp>
 
-using namespace GoldenSun;
-
-namespace
+namespace GoldenSun
 {
-    class MeshD3D12 : public Mesh
+    class Mesh::MeshImpl
     {
+        DISALLOW_COPY_AND_ASSIGN(MeshImpl);
+        DISALLOW_COPY_MOVE_AND_ASSIGN(MeshImpl);
+
     public:
-        MeshD3D12(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
+        MeshImpl(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
             : vertex_format_(vertex_fmt), vertex_stride_in_bytes_(vb_stride_in_bytes), index_format_(index_fmt),
               index_stride_in_bytes_(ib_stride_in_bytes)
         {
         }
 
-        void AddGeometry(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id) override
+        uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags)
         {
-            this->AddGeometry(vb, ib, material_id, D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE);
+            uint32_t const primitive_id = static_cast<uint32_t>(primitives_.size());
+
+            auto& new_primitive = primitives_.emplace_back();
+
+            new_primitive.vb.resource = vb;
+            new_primitive.vb.count = static_cast<uint32_t>(vb->GetDesc().Width / vertex_stride_in_bytes_);
+            new_primitive.vb.vertex_buffer.StrideInBytes = vertex_stride_in_bytes_;
+            new_primitive.vb.vertex_buffer.StartAddress = vb->GetGPUVirtualAddress();
+
+            new_primitive.ib.resource = ib;
+            new_primitive.ib.count = static_cast<uint32_t>(ib->GetDesc().Width / index_stride_in_bytes_);
+            new_primitive.ib.index_buffer = ib->GetGPUVirtualAddress();
+
+            new_primitive.material_id = material_id;
+            new_primitive.flags = flags;
+
+            return primitive_id;
         }
 
-        void AddGeometry(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags) override
-        {
-            auto& new_geometry = geometries_.emplace_back();
-
-            new_geometry.vb.resource = vb;
-            new_geometry.vb.count = static_cast<uint32_t>(vb->GetDesc().Width / vertex_stride_in_bytes_);
-            new_geometry.vb.vertex_buffer.StrideInBytes = vertex_stride_in_bytes_;
-            new_geometry.vb.vertex_buffer.StartAddress = vb->GetGPUVirtualAddress();
-
-            new_geometry.ib.resource = ib;
-            new_geometry.ib.count = static_cast<uint32_t>(ib->GetDesc().Width / index_stride_in_bytes_);
-            new_geometry.ib.index_buffer = ib->GetGPUVirtualAddress();
-
-            new_geometry.material_id = material_id;
-            new_geometry.flags = flags;
-        }
-
-        DXGI_FORMAT VertexFormat() const noexcept override
+        DXGI_FORMAT VertexFormat() const noexcept
         {
             return vertex_format_;
         }
-        uint32_t VertexStrideInBytes() const noexcept override
+        uint32_t VertexStrideInBytes() const noexcept
         {
             return vertex_stride_in_bytes_;
         }
-        uint32_t NumVertices(uint32_t index) const noexcept override
-        {
-            return geometries_[index].vb.count;
-        }
-        ID3D12Resource* VertexBuffer(uint32_t index) const noexcept override
-        {
-            return geometries_[index].vb.resource.Get();
-        }
 
-        DXGI_FORMAT IndexFormat() const noexcept override
+        DXGI_FORMAT IndexFormat() const noexcept
         {
             return index_format_;
         }
-        uint32_t IndexStrideInBytes() const noexcept override
+        uint32_t IndexStrideInBytes() const noexcept
         {
             return index_stride_in_bytes_;
         }
-        uint32_t NumIndices(uint32_t index) const noexcept override
+
+        uint32_t NumVertices(uint32_t primitive_id) const noexcept
         {
-            return geometries_[index].ib.count;
+            return primitives_[primitive_id].vb.count;
         }
-        ID3D12Resource* IndexBuffer(uint32_t index) const noexcept override
+        ID3D12Resource* VertexBuffer(uint32_t primitive_id) const noexcept
         {
-            return geometries_[index].ib.resource.Get();
+            return primitives_[primitive_id].vb.resource.Get();
         }
 
-        uint32_t MaterialId(uint32_t index) const noexcept
+        uint32_t NumIndices(uint32_t primitive_id) const noexcept
         {
-            return geometries_[index].material_id;
+            return primitives_[primitive_id].ib.count;
+        }
+        ID3D12Resource* IndexBuffer(uint32_t primitive_id) const noexcept
+        {
+            return primitives_[primitive_id].ib.resource.Get();
         }
 
-        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const override
+        uint32_t MaterialId(uint32_t primitive_id) const noexcept
+        {
+            return primitives_[primitive_id].material_id;
+        }
+
+        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const
         {
             std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> ret;
-            ret.reserve(geometries_.size());
+            ret.reserve(primitives_.size());
 
-            for (auto const& geometry : geometries_)
+            for (auto const& primitive : primitives_)
             {
                 auto& geometry_desc = ret.emplace_back();
                 geometry_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-                geometry_desc.Flags = geometry.flags;
+                geometry_desc.Flags = primitive.flags;
                 geometry_desc.Triangles.Transform3x4 = 0;
-                geometry_desc.Triangles.VertexBuffer = geometry.vb.vertex_buffer;
-                geometry_desc.Triangles.VertexCount = geometry.vb.count;
+                geometry_desc.Triangles.VertexBuffer = primitive.vb.vertex_buffer;
+                geometry_desc.Triangles.VertexCount = primitive.vb.count;
                 geometry_desc.Triangles.VertexFormat = vertex_format_;
-                geometry_desc.Triangles.IndexBuffer = geometry.ib.index_buffer;
-                geometry_desc.Triangles.IndexCount = geometry.ib.count;
+                geometry_desc.Triangles.IndexBuffer = primitive.ib.index_buffer;
+                geometry_desc.Triangles.IndexCount = primitive.ib.count;
                 geometry_desc.Triangles.IndexFormat = index_format_;
             }
 
@@ -110,7 +112,7 @@ namespace
             };
         };
 
-        struct Geometry
+        struct Primitive
         {
             Buffer vb;
             Buffer ib;
@@ -119,21 +121,97 @@ namespace
         };
 
     private:
-        std::vector<Geometry> geometries_;
+        std::vector<Primitive> primitives_;
         DXGI_FORMAT vertex_format_;
         uint32_t vertex_stride_in_bytes_;
         DXGI_FORMAT index_format_;
         uint32_t index_stride_in_bytes_;
     };
-} // namespace
 
-namespace GoldenSun
-{
-    Mesh::~Mesh() = default;
 
-    std::unique_ptr<Mesh> CreateMeshD3D12(
-        DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
+    Mesh::Mesh(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
+        : impl_(new MeshImpl(vertex_fmt, vb_stride_in_bytes, index_fmt, ib_stride_in_bytes))
     {
-        return std::make_unique<MeshD3D12>(vertex_fmt, vb_stride_in_bytes, index_fmt, ib_stride_in_bytes);
+    }
+
+    Mesh::~Mesh() noexcept
+    {
+        delete impl_;
+        impl_ = nullptr;
+    }
+
+    Mesh::Mesh(Mesh&& other) noexcept : impl_(std::move(other.impl_))
+    {
+        other.impl_ = nullptr;
+    }
+
+    Mesh& Mesh::operator=(Mesh&& other) noexcept
+    {
+        if (this != &other)
+        {
+            impl_ = std::move(other.impl_);
+            other.impl_ = nullptr;
+        }
+        return *this;
+    }
+
+    uint32_t Mesh::AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id)
+    {
+        return impl_->AddPrimitive(vb, ib, material_id, D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE);
+    }
+
+    uint32_t Mesh::AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags)
+    {
+        return impl_->AddPrimitive(vb, ib, material_id, flags);
+    }
+
+    DXGI_FORMAT Mesh::VertexFormat() const noexcept
+    {
+        return impl_->VertexFormat();
+    }
+
+    uint32_t Mesh::VertexStrideInBytes() const noexcept
+    {
+        return impl_->VertexStrideInBytes();
+    }
+
+    DXGI_FORMAT Mesh::IndexFormat() const noexcept
+    {
+        return impl_->IndexFormat();
+    }
+
+    uint32_t Mesh::IndexStrideInBytes() const noexcept
+    {
+        return impl_->IndexStrideInBytes();
+    }
+
+    uint32_t Mesh::NumVertices(uint32_t primitive_id) const noexcept
+    {
+        return impl_->NumVertices(primitive_id);
+    }
+
+    ID3D12Resource* Mesh::VertexBuffer(uint32_t primitive_id) const noexcept
+    {
+        return impl_->VertexBuffer(primitive_id);
+    }
+
+    uint32_t Mesh::NumIndices(uint32_t primitive_id) const noexcept
+    {
+        return impl_->NumIndices(primitive_id);
+    }
+
+    ID3D12Resource* Mesh::IndexBuffer(uint32_t primitive_id) const noexcept
+    {
+        return impl_->IndexBuffer(primitive_id);
+    }
+
+    uint32_t Mesh::MaterialId(uint32_t primitive_id) const noexcept
+    {
+        return impl_->MaterialId(primitive_id);
+    }
+
+    std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> Mesh::GeometryDescs() const
+    {
+        return impl_->GeometryDescs();
     }
 } // namespace GoldenSun

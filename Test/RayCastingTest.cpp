@@ -14,7 +14,7 @@ public:
     void SetUp() override
     {
         auto& test_env = TestEnv();
-        golden_sun_engine_ = CreateEngineD3D12(test_env.CommandQueue());
+        golden_sun_engine_ = std::make_unique<Engine>(test_env.Device(), test_env.CommandQueue());
     }
 
 protected:
@@ -83,12 +83,12 @@ TEST_F(RayCastingTest, SingleObject)
     auto vb = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer");
     auto ib = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
 
-    std::vector<std::unique_ptr<Mesh>> meshes;
+    std::vector<Mesh> meshes;
     std::vector<XMFLOAT4X4> transforms;
     {
-        auto& mesh = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
-            DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-        mesh->AddGeometry(vb.Get(), ib.Get(), 0);
+        auto& mesh = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
+            static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
 
         auto& world = transforms.emplace_back();
         XMStoreFloat4x4(&world, XMMatrixIdentity());
@@ -184,19 +184,19 @@ TEST_F(RayCastingTest, MultipleObjects)
     auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
     auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
-    std::vector<std::unique_ptr<Mesh>> meshes;
+    std::vector<Mesh> meshes;
     std::vector<XMFLOAT4X4> transforms;
     {
-        auto& mesh0 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
-            DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-        mesh0->AddGeometry(vb0.Get(), ib0.Get(), 0);
+        auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
+            static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
 
         auto& world0 = transforms.emplace_back();
         XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
 
-        auto& mesh1 = meshes.emplace_back(CreateMeshD3D12(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)),
-            DXGI_FORMAT_R16_UINT, static_cast<uint32_t>(sizeof(uint16_t))));
-        mesh1->AddGeometry(vb1.Get(), ib1.Get(), 1);
+        auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
+            static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
         auto& world1 = transforms.emplace_back();
         XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));

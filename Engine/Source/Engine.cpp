@@ -530,11 +530,10 @@ namespace
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
 
-    ComPtr<ID3D12Device5> DeviceFromCommandQueue(ID3D12CommandQueue* cmd_queue)
+    template <typename T>
+    static constexpr uint32_t ConvertToUint(T value)
     {
-        ComPtr<ID3D12Device5> device;
-        cmd_queue->GetDevice(UuidOf<ID3D12Device5>(), device.PutVoid());
-        return device;
+        return static_cast<uint32_t>(value);
     }
 
     struct SceneConstantBuffer
@@ -582,25 +581,24 @@ namespace
         };
     };
 
-    class EngineD3D12 : public Engine
+    struct Buffer
     {
-        struct Buffer
-        {
-            ComPtr<ID3D12Resource> resource;
-            D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor_handle;
-        };
+        ComPtr<ID3D12Resource> resource;
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor_handle;
+    };
+} // namespace
 
-        template <typename T>
-        static constexpr uint32_t ConvertToUint(T value)
-        {
-            return static_cast<uint32_t>(value);
-        }
+namespace GoldenSun
+{
+    class Engine::EngineImpl
+    {
+        DISALLOW_COPY_AND_ASSIGN(EngineImpl);
+        DISALLOW_COPY_MOVE_AND_ASSIGN(EngineImpl);
 
     public:
-        explicit EngineD3D12(ID3D12CommandQueue* cmd_queue)
-            : device_(DeviceFromCommandQueue(cmd_queue)), cmd_queue_(cmd_queue),
-              per_frame_constants_(device_.Get(), FrameCount, L"Per Frame Constants")
+        EngineImpl(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue)
+            : device_(device), cmd_queue_(cmd_queue), per_frame_constants_(device_.Get(), FrameCount, L"Per Frame Constants")
         {
             Verify(IsDXRSupported(device_.Get()));
 
@@ -623,12 +621,12 @@ namespace
             this->CreateDescriptorHeap();
         }
 
-        ~EngineD3D12() override
+        ~EngineImpl() noexcept
         {
             this->ReleaseWindowSizeDependentResources();
         }
 
-        void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format) override
+        void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format)
         {
             if ((width != width_) || (height != height_) || (format != format_))
             {
@@ -646,8 +644,7 @@ namespace
             }
         }
 
-        void Geometry(std::unique_ptr<Mesh> const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb,
-            uint32_t num_materials) override
+        void Geometry(Mesh const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
         {
             material_buffer_.resource = mb;
             uint32_t const descriptor_index_mb = this->CreateBufferSrv(material_buffer_, num_materials, sizeof(Material));
@@ -658,19 +655,19 @@ namespace
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     auto& vb = vertex_buffers_.emplace_back();
-                    vb.resource = meshes[i]->VertexBuffer(0);
+                    vb.resource = meshes[i].VertexBuffer(0);
                     uint32_t const descriptor_index_vb =
-                        this->CreateBufferSrv(vb, meshes[i]->NumVertices(0), meshes[i]->VertexStrideInBytes());
+                        this->CreateBufferSrv(vb, meshes[i].NumVertices(0), meshes[i].VertexStrideInBytes());
 
                     auto& ib = index_buffers_.emplace_back();
-                    ib.resource = meshes[i]->IndexBuffer(0);
+                    ib.resource = meshes[i].IndexBuffer(0);
                     uint32_t const descriptor_index_ib =
-                        this->CreateBufferSrv(ib, meshes[i]->NumIndices(0) * meshes[i]->IndexStrideInBytes() / 4, 0);
+                        this->CreateBufferSrv(ib, meshes[i].NumIndices(0) * meshes[i].IndexStrideInBytes() / 4, 0);
 
                     Verify(descriptor_index_ib == descriptor_index_vb + 1);
 
                     bool update_on_build = false;
-                    acceleration_structure_->AddBottomLevelAS(device_.Get(), build_flags, *meshes[i], update_on_build, update_on_build);
+                    acceleration_structure_->AddBottomLevelAS(device_.Get(), build_flags, meshes[i], update_on_build, update_on_build);
                 }
             }
 
@@ -693,7 +690,7 @@ namespace
             }
         }
 
-        void Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane) override
+        void Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
         {
             eye_ = eye;
             look_at_ = look_at;
@@ -704,13 +701,13 @@ namespace
             far_plane_ = far_plane;
         }
 
-        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color) override
+        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color)
         {
             light_pos_ = pos;
             light_color_ = color;
         }
 
-        void Render(ID3D12GraphicsCommandList4* cmd_list) override
+        void Render(ID3D12GraphicsCommandList4* cmd_list)
         {
             acceleration_structure_->Build(cmd_list, frame_index_);
 
@@ -764,7 +761,7 @@ namespace
             frame_index_ = (frame_index_ + 1) % FrameCount;
         }
 
-        ID3D12Resource* Output() const noexcept override
+        ID3D12Resource* Output() const noexcept
         {
             return ray_tracing_output_.Get();
         }
@@ -793,7 +790,7 @@ namespace
                 ray_tracing_output_resource_uav_descriptor_heap_index_ * descriptor_size_};
         }
 
-        void ReleaseWindowSizeDependentResources()
+        void ReleaseWindowSizeDependentResources() noexcept
         {
             ray_tracing_output_.Reset();
         }
@@ -912,7 +909,7 @@ namespace
             descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
-        void BuildShaderTables(std::unique_ptr<Mesh> const* meshes)
+        void BuildShaderTables(Mesh const* meshes)
         {
             void* ray_gen_shader_identifier;
             void* hit_group_shader_identifier;
@@ -957,7 +954,7 @@ namespace
                     geometry.InstanceContributionToHitGroupIndex(shader_record_offset);
 
                     LocalRootSignature::RootArguments root_arguments;
-                    root_arguments.cb.material_id = meshes[i]->MaterialId(0);
+                    root_arguments.cb.material_id = meshes[i].MaterialId(0);
                     root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
                     root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
 
@@ -1060,14 +1057,61 @@ namespace
         XMFLOAT3 light_pos_;
         XMFLOAT3 light_color_;
     };
-} // namespace
 
-namespace GoldenSun
-{
-    Engine::~Engine() = default;
 
-    std::unique_ptr<Engine> CreateEngineD3D12(ID3D12CommandQueue* cmd_queue)
+    Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new EngineImpl(device, cmd_queue))
     {
-        return std::make_unique<EngineD3D12>(cmd_queue);
+    }
+
+    Engine::~Engine()
+    {
+        delete impl_;
+        impl_ = nullptr;
+    }
+
+    Engine::Engine(Engine&& other) noexcept : impl_(std::move(other.impl_))
+    {
+        other.impl_ = nullptr;
+    }
+
+    Engine& Engine::operator=(Engine&& other) noexcept
+    {
+        if (this != &other)
+        {
+            impl_ = std::move(other.impl_);
+            other.impl_ = nullptr;
+        }
+        return *this;
+    }
+
+    void Engine::RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format)
+    {
+        return impl_->RenderTarget(width, height, format);
+    }
+
+    void Engine::Geometry(
+        Mesh const* meshes, DirectX::XMFLOAT4X4* transforms, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
+    {
+        return impl_->Geometry(meshes, transforms, num_meshes, mb, num_materials);
+    }
+
+    void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
+    {
+        return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+    }
+
+    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color)
+    {
+        return impl_->Light(pos, color);
+    }
+
+    void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)
+    {
+        return impl_->Render(cmd_list);
+    }
+
+    ID3D12Resource* Engine::Output() const noexcept
+    {
+        return impl_->Output();
     }
 } // namespace GoldenSun

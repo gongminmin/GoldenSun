@@ -232,9 +232,9 @@ namespace GoldenSun
         uint32_t max_instance_contribution_to_hit_group_index = 0;
         for (uint32_t i = 0; i < num_bottom_level_as_instances_; i++)
         {
-            auto& instanceDesc = bottom_level_as_instance_descs_[i];
+            auto const& instance_desc = bottom_level_as_instance_descs_[i];
             max_instance_contribution_to_hit_group_index =
-                std::max(max_instance_contribution_to_hit_group_index, instanceDesc.InstanceContributionToHitGroupIndex);
+                std::max(max_instance_contribution_to_hit_group_index, instance_desc.InstanceContributionToHitGroupIndex);
         }
         return max_instance_contribution_to_hit_group_index;
     };
