@@ -7,7 +7,7 @@ struct SceneConstantBuffer
     float4 light_color;
 };
 
-struct Material
+struct PbrMaterial
 {
     float4 albedo;
 };
@@ -27,7 +27,7 @@ RaytracingAccelerationStructure scene : register(t0, space0);
 RWTexture2D<float4> render_target : register(u0, space0);
 
 ConstantBuffer<SceneConstantBuffer> scene_cb : register(b0, space0);
-StructuredBuffer<Material> material_buffer : register(t1, space0);
+StructuredBuffer<PbrMaterial> material_buffer : register(t1, space0);
 
 ConstantBuffer<PrimitiveConstantBuffer> primitive_cb : register(b0, space1);
 StructuredBuffer<Vertex> vertex_buffer : register(t0, space1);
@@ -57,7 +57,7 @@ uint3 Load3x16BitIndices(uint offset_bytes)
 
 float4 CalcLighting(float3 position, float3 normal)
 {
-    Material mtl = material_buffer[primitive_cb.material_id];
+    PbrMaterial mtl = material_buffer[primitive_cb.material_id];
 
     float3 const ambient = 0.1f;
 

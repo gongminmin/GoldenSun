@@ -136,7 +136,7 @@ namespace GoldenSun
 
         Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
-        Material const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
+        PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
 
         D3D12_HEAP_PROPERTIES const upload_heap_prop = {
             D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -152,8 +152,6 @@ namespace GoldenSun
             return ret;
         };
 
-        auto mb = CreateUploadBuffer(mtls, sizeof(mtls), L"Material Buffer");
-
         auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
         auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
         auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
@@ -163,6 +161,10 @@ namespace GoldenSun
         {
             auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
                 static_cast<uint32_t>(sizeof(uint16_t)));
+
+            mesh0.AddMaterial(mtls[0]);
+            mesh0.AddMaterial(mtls[1]);
+
             mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
             mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
@@ -175,6 +177,9 @@ namespace GoldenSun
 
             auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
                 static_cast<uint32_t>(sizeof(uint16_t)));
+
+            mesh1.AddMaterial(mtls[0]);
+
             mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
             XMFLOAT4X4 world1;
@@ -182,7 +187,7 @@ namespace GoldenSun
             mesh1.AddInstance(world1);
         }
 
-        golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), static_cast<uint32_t>(std::size(mtls)));
+        golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
     }
 
     void GoldenSunApp::Active(bool active)

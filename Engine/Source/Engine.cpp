@@ -644,10 +644,29 @@ namespace GoldenSun
             }
         }
 
-        void Geometry(Mesh const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
+        void Geometries(Mesh const* meshes, uint32_t num_meshes)
         {
-            material_buffer_.resource = mb;
-            uint32_t const descriptor_index_mb = this->CreateBufferSrv(material_buffer_, num_materials, sizeof(Material));
+            {
+                material_start_indices_.assign(1, 0);
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    material_start_indices_.push_back(material_start_indices_.back() + meshes[i].NumMaterials());
+                }
+
+                uint32_t const num_materials = material_start_indices_.back();
+                StructuredBuffer<PbrMaterial> mb(device_.Get(), num_materials, 1, L"Material Buffer");
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
+                    {
+                        mb[material_start_indices_[i] + j] = meshes[i].Material(j);
+                    }
+                }
+                mb.UploadToGpu();
+
+                material_buffer_.resource = mb.Resource();
+                this->CreateBufferSrv(material_buffer_, num_materials, sizeof(PbrMaterial));
+            }
 
             {
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
@@ -960,7 +979,7 @@ namespace GoldenSun
                     for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
                     {
                         LocalRootSignature::RootArguments root_arguments;
-                        root_arguments.cb.material_id = meshes[i].MaterialId(j);
+                        root_arguments.cb.material_id = material_start_indices_[i] + meshes[i].MaterialId(j);
                         root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
                         root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
 
@@ -1034,6 +1053,8 @@ namespace GoldenSun
         uint32_t descriptor_size_;
 
         Buffer material_buffer_;
+        std::vector<uint32_t> material_start_indices_;
+
         std::vector<Buffer> vertex_buffers_;
         std::vector<Buffer> index_buffers_;
 
@@ -1096,9 +1117,9 @@ namespace GoldenSun
         return impl_->RenderTarget(width, height, format);
     }
 
-    void Engine::Geometry(Mesh const* meshes, uint32_t num_meshes, ID3D12Resource* mb, uint32_t num_materials)
+    void Engine::Geometries(Mesh const* meshes, uint32_t num_meshes)
     {
-        return impl_->Geometry(meshes, num_meshes, mb, num_materials);
+        return impl_->Geometries(meshes, num_meshes);
     }
 
     void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)

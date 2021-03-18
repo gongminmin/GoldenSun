@@ -62,7 +62,7 @@ TEST_F(RayCastingTest, SingleObject)
     Index const cube_indices[] = {
         3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
 
-    Material const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
+    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -78,8 +78,6 @@ TEST_F(RayCastingTest, SingleObject)
         return ret;
     };
 
-    auto mb = CreateUploadBuffer(mtls, sizeof(mtls), L"Material Buffer");
-
     auto vb = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer");
     auto ib = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
 
@@ -87,6 +85,7 @@ TEST_F(RayCastingTest, SingleObject)
     {
         auto& mesh = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh.AddMaterial(mtls[0]);
         mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
 
         XMFLOAT4X4 world;
@@ -94,7 +93,7 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddInstance(world);
     }
 
-    golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), static_cast<uint32_t>(std::size(mtls)));
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     test_env.BeginFrame();
 
@@ -161,7 +160,7 @@ TEST_F(RayCastingTest, MultipleObjects)
 
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
-    Material const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
+    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -177,8 +176,6 @@ TEST_F(RayCastingTest, MultipleObjects)
         return ret;
     };
 
-    auto mb = CreateUploadBuffer(mtls, sizeof(mtls), L"Material Buffer");
-
     auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
     auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
     auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
@@ -188,6 +185,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     {
         auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh0.AddMaterial(mtls[0]);
         mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
 
         XMFLOAT4X4 world0;
@@ -196,14 +194,15 @@ TEST_F(RayCastingTest, MultipleObjects)
 
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
-        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 1);
+        mesh1.AddMaterial(mtls[1]);
+        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
         XMFLOAT4X4 world1;
         XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), static_cast<uint32_t>(std::size(mtls)));
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     test_env.BeginFrame();
 
@@ -270,7 +269,7 @@ TEST_F(RayCastingTest, Instancing)
 
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
-    Material const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}, {{0.8f, 0.4f, 0.6f, 1.0f}}};
+    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}, {{0.8f, 0.4f, 0.6f, 1.0f}}};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -286,8 +285,6 @@ TEST_F(RayCastingTest, Instancing)
         return ret;
     };
 
-    auto mb = CreateUploadBuffer(mtls, sizeof(mtls), L"Material Buffer");
-
     auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
     auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
     auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
@@ -297,6 +294,8 @@ TEST_F(RayCastingTest, Instancing)
     {
         auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
+        mesh0.AddMaterial(mtls[0]);
+        mesh0.AddMaterial(mtls[1]);
         mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
         mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
@@ -309,14 +308,15 @@ TEST_F(RayCastingTest, Instancing)
 
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
-        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 2);
+        mesh1.AddMaterial(mtls[2]);
+        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
         XMFLOAT4X4 world1;
         XMStoreFloat4x4(&world1, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometry(meshes.data(), static_cast<uint32_t>(meshes.size()), mb.Get(), static_cast<uint32_t>(std::size(mtls)));
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     test_env.BeginFrame();
 

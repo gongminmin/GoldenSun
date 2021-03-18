@@ -22,7 +22,7 @@ namespace GoldenSun
 
     using Index = uint16_t;
 
-    struct Material
+    struct PbrMaterial
     {
         DirectX::XMFLOAT4 albedo;
     };
@@ -44,6 +44,10 @@ namespace GoldenSun
         DXGI_FORMAT IndexFormat() const noexcept;
         uint32_t IndexStrideInBytes() const noexcept;
 
+        uint32_t AddMaterial(PbrMaterial const& material);
+        uint32_t NumMaterials() const noexcept;
+        PbrMaterial const& Material(uint32_t material_id) const noexcept;
+
         // TODO: Support adding a region of buffers as a primitive
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id);
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags);
@@ -58,9 +62,7 @@ namespace GoldenSun
         uint32_t MaterialId(uint32_t primitive_id) const noexcept;
 
         uint32_t AddInstance(DirectX::XMFLOAT4X4 const& transform);
-
         uint32_t NumInstances() const noexcept;
-
         DirectX::XMFLOAT4X4 const& Transform(uint32_t instance_id) const noexcept;
 
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const;

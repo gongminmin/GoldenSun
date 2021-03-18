@@ -36,6 +36,23 @@ namespace GoldenSun
             return index_stride_in_bytes_;
         }
 
+        uint32_t AddMaterial(PbrMaterial const& material)
+        {
+            uint32_t const material_id = static_cast<uint32_t>(materials_.size());
+            materials_.push_back(material);
+            return material_id;
+        }
+
+        uint32_t NumMaterials() const noexcept
+        {
+            return static_cast<uint32_t>(materials_.size());
+        }
+
+        PbrMaterial const& Material(uint32_t material_id) const noexcept
+        {
+            return materials_[material_id];
+        }
+
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags)
         {
             uint32_t const primitive_id = static_cast<uint32_t>(primitives_.size());
@@ -50,6 +67,8 @@ namespace GoldenSun
             new_primitive.ib.resource = ib;
             new_primitive.ib.count = static_cast<uint32_t>(ib->GetDesc().Width / index_stride_in_bytes_);
             new_primitive.ib.index_buffer = ib->GetGPUVirtualAddress();
+
+            assert(new_primitive.material_id < this->NumMaterials());
 
             new_primitive.material_id = material_id;
             new_primitive.flags = flags;
@@ -153,6 +172,7 @@ namespace GoldenSun
         };
 
     private:
+        std::vector<PbrMaterial> materials_;
         std::vector<Primitive> primitives_;
         std::vector<Instance> instances_;
         DXGI_FORMAT vertex_format_;
@@ -206,6 +226,21 @@ namespace GoldenSun
     uint32_t Mesh::IndexStrideInBytes() const noexcept
     {
         return impl_->IndexStrideInBytes();
+    }
+
+    uint32_t Mesh::AddMaterial(PbrMaterial const& material)
+    {
+        return impl_->AddMaterial(material);
+    }
+
+    uint32_t Mesh::NumMaterials() const noexcept
+    {
+        return impl_->NumMaterials();
+    }
+
+    PbrMaterial const& Mesh::Material(uint32_t material_id) const noexcept
+    {
+        return impl_->Material(material_id);
     }
 
     uint32_t Mesh::AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id)
