@@ -1,6 +1,7 @@
 #include "pch.hpp"
 
 #include "GoldenSunApp.hpp"
+#include "MeshLoader.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -93,7 +94,7 @@ namespace GoldenSun
     void GoldenSunApp::InitializeScene()
     {
         {
-            eye_ = {0.0f, 2.0f, -5.0f};
+            eye_ = {0.0f, 1.0f, -3.0f};
             look_at_ = {0.0f, 0.0f, 0.0f};
             up_ = {0.0f, 1.0f, 0.0f};
 
@@ -105,88 +106,12 @@ namespace GoldenSun
         }
         {
             light_pos_ = {0.0f, 1.8f, -3.0f};
-            light_color_ = {1.0f, 0.8f, 0.0f};
+            light_color_ = {1.0f, 1.0f, 1.0f};
 
             golden_sun_engine_->Light(light_pos_, light_color_);
         }
 
-        float const v = 1 / sqrt(3.0f);
-        Vertex const cube_vertices[] = {
-            {{-1.0f, +1.0f, -1.0f}, {-v, +v, -v}},
-            {{+1.0f, +1.0f, -1.0f}, {+v, +v, -v}},
-            {{+1.0f, +1.0f, +1.0f}, {+v, +v, +v}},
-            {{-1.0f, +1.0f, +1.0f}, {-v, +v, +v}},
-
-            {{-1.0f, -1.0f, -1.0f}, {-v, -v, -v}},
-            {{+1.0f, -1.0f, -1.0f}, {+v, -v, -v}},
-            {{+1.0f, -1.0f, +1.0f}, {+v, -v, +v}},
-            {{-1.0f, -1.0f, +1.0f}, {-v, -v, +v}},
-        };
-
-        Index const cube_indices[] = {
-            3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
-
-        float const sqrt3_2 = sqrt(3.0f) / 2;
-        Vertex const tetrahedron_vertices[] = {
-            {{0.0f, 2.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-            {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 1.0f}},
-            {{+sqrt3_2 * 2, 0.0f, -1.0f}, {sqrt3_2, 0.0f, -0.5f}},
-            {{-sqrt3_2 * 2, 0.0f, -1.0f}, {sqrt3_2, 0.0f, -0.5f}},
-        };
-
-        Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
-
-        PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
-
-        D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-            D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-        auto CreateUploadBuffer = [this, &upload_heap_prop](void const* data, uint32_t data_size, wchar_t const* name) {
-            ComPtr<ID3D12Resource> ret;
-
-            GpuUploadBuffer buffer(device_.Get(), data_size, name);
-            ret = buffer.Resource();
-
-            memcpy(buffer.MappedData<void>(), data, data_size);
-
-            return ret;
-        };
-
-        auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
-        auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
-        auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
-        auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
-
-        std::vector<Mesh> meshes;
-        {
-            auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
-                static_cast<uint32_t>(sizeof(uint16_t)));
-
-            mesh0.AddMaterial(mtls[0]);
-            mesh0.AddMaterial(mtls[1]);
-
-            mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
-            mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
-
-            XMFLOAT4X4 world0;
-            XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
-            mesh0.AddInstance(world0);
-
-            XMStoreFloat4x4(&world0, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixRotationX(0.8f) * XMMatrixTranslation(-1.5f, 0, -1.8f));
-            mesh0.AddInstance(world0);
-
-            auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
-                static_cast<uint32_t>(sizeof(uint16_t)));
-
-            mesh1.AddMaterial(mtls[0]);
-
-            mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
-
-            XMFLOAT4X4 world1;
-            XMStoreFloat4x4(&world1, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
-            mesh1.AddInstance(world1);
-        }
-
+        std::vector<Mesh> const meshes = LoadMesh(device_.Get(), MEDIA_DIR "DamagedHelmet/DamagedHelmet.gltf");
         golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
     }
 
@@ -202,7 +127,7 @@ namespace GoldenSun
         {
             float const seconds_to_rotate_around = 12.0f;
             float const rotate = XMConvertToRadians(360.0f * (frame_time_ / seconds_to_rotate_around));
-            XMMATRIX const rotate_mat = XMMatrixRotationY(rotate) * XMMatrixRotationX(-rotate);
+            XMMATRIX const rotate_mat = XMMatrixRotationY(rotate);
             XMVECTOR eye = XMVector3Transform(XMLoadFloat3(&eye_), rotate_mat);
             XMVECTOR look_at = XMVector3Transform(XMLoadFloat3(&look_at_), rotate_mat);
             XMVECTOR up = XMVector3Transform(XMLoadFloat3(&up_), rotate_mat);
