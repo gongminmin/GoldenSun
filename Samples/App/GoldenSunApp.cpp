@@ -116,9 +116,10 @@ namespace GoldenSun
         }
         {
             light_pos_ = {0.0f, 1.8f, -3.0f};
-            light_color_ = {1.0f, 1.0f, 1.0f};
+            light_color_ = {20.0f, 20.0f, 20.0f};
+            light_falloff_ = {1, 0, 1};
 
-            golden_sun_engine_->Light(light_pos_, light_color_);
+            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_);
         }
 
         TIFHR(cmd_allocators_[frame_index_]->Reset());
@@ -162,7 +163,7 @@ namespace GoldenSun
 
             XMStoreFloat3(&light_pos_, light_pos);
 
-            golden_sun_engine_->Light(light_pos_, light_color_);
+            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_);
         }
 
         if (window_visible_)

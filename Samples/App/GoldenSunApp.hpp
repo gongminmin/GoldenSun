@@ -94,6 +94,7 @@ namespace GoldenSun
 
         DirectX::XMFLOAT3 light_pos_;
         DirectX::XMFLOAT3 light_color_;
+        DirectX::XMFLOAT3 light_falloff_;
 
         std::unique_ptr<Engine> golden_sun_engine_;
     };

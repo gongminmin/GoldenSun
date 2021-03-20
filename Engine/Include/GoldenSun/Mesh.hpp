@@ -31,7 +31,7 @@ namespace GoldenSun
             alignas(4) DirectX::XMFLOAT3 albedo{0, 0, 0};
             alignas(4) float opacity{1};
             alignas(4) DirectX::XMFLOAT3 emissive{0, 0, 0};
-            alignas(4) float metalness{0};
+            alignas(4) float metallic{0};
             alignas(4) float glossiness{1};
             alignas(4) float alpha_test{0};
             alignas(4) float normal_scale{1};
@@ -47,7 +47,7 @@ namespace GoldenSun
         enum class TextureSlot
         {
             Albedo,
-            MetalnessGlossiness,
+            MetallicGlossiness,
             Emissive,
             Normal,
             Height,
@@ -58,6 +58,8 @@ namespace GoldenSun
 
         std::array<ComPtr<ID3D12Resource>, ConvertToUint(TextureSlot::Num)> textures;
     };
+
+    float constexpr MAX_GLOSSINESS = 8192;
 
     class GOLDEN_SUN_API Mesh
     {

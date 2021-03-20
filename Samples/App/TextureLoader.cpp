@@ -79,7 +79,8 @@ namespace
 
 namespace GoldenSun
 {
-    ComPtr<ID3D12Resource> LoadTexture(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name)
+    ComPtr<ID3D12Resource> LoadTexture(
+        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name, DXGI_FORMAT format)
     {
         ComPtr<ID3D12Resource> ret;
 
@@ -91,7 +92,7 @@ namespace GoldenSun
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
             D3D12_RESOURCE_DESC const tex_desc = {D3D12_RESOURCE_DIMENSION_TEXTURE2D, 0, static_cast<uint64_t>(width),
-                static_cast<uint32_t>(height), 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, {1, 0}, D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                static_cast<uint32_t>(height), 1, 1, format, {1, 0}, D3D12_TEXTURE_LAYOUT_UNKNOWN,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
             TIFHR(device->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &tex_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
                 nullptr, UuidOf<ID3D12Resource>(), ret.PutVoid()));

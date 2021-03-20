@@ -42,8 +42,9 @@ TEST_F(RayCastingTest, SingleObject)
     {
         XMFLOAT3 const light_pos = {-2.0f, 1.8f, -3.0f};
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
+        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
     }
 
     float const v = 1 / sqrt(3.0f);
@@ -131,8 +132,9 @@ TEST_F(RayCastingTest, MultipleObjects)
     {
         XMFLOAT3 const light_pos = {2.0f, 1.8f, -3.0f};
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
+        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
     }
 
     float const v = 1 / sqrt(3.0f);
@@ -242,8 +244,9 @@ TEST_F(RayCastingTest, Instancing)
     {
         XMFLOAT3 const light_pos = {2.0f, 1.8f, -3.0f};
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
+        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
     }
 
     float const v = 1 / sqrt(3.0f);

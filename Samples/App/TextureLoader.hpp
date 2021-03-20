@@ -8,5 +8,6 @@
 
 namespace GoldenSun
 {
-    ComPtr<ID3D12Resource> LoadTexture(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name);
+    ComPtr<ID3D12Resource> LoadTexture(
+        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name, DXGI_FORMAT format);
 }

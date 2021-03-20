@@ -5,6 +5,7 @@ struct SceneConstantBuffer
 
     float4 light_pos;
     float4 light_color;
+    float4 light_falloff;
 };
 
 struct PbrMaterial
@@ -12,7 +13,7 @@ struct PbrMaterial
     float3 albedo;
     float opacity;
     float3 emissive;
-    float metalness;
+    float metallic;
     float glossiness;
     float alpha_test;
     float normal_scale;
@@ -46,7 +47,7 @@ ConstantBuffer<PrimitiveConstantBuffer> primitive_cb : register(b0, space1);
 StructuredBuffer<Vertex> vertex_buffer : register(t0, space1);
 ByteAddressBuffer index_buffer : register(t1, space1);
 Texture2D albedo_tex : register(t2, space1);
-Texture2D metalness_glossiness_tex : register(t3, space1);
+Texture2D metallic_glossiness_tex : register(t3, space1);
 Texture2D emissive_tex : register(t4, space1);
 Texture2D normal_tex : register(t5, space1);
 Texture2D occlusion_tex : register(t6, space1);
@@ -73,6 +74,46 @@ uint3 Load3x16BitIndices(uint offset_bytes)
     return ret;
 }
 
+float3 DiffuseColor(float3 albedo, float metallic)
+{
+    return albedo * (1 - metallic);
+}
+
+float3 SpecularColor(float3 albedo, float metallic)
+{
+    return lerp(0.04, albedo, metallic);
+}
+
+float3 FresnelTerm(float3 light_vec, float3 halfway_vec, float3 c_spec)
+{
+    float e_n = saturate(dot(light_vec, halfway_vec));
+    return c_spec > 0 ? c_spec + (1 - c_spec) * exp2(-(5.55473f * e_n + 6.98316f) * e_n) : 0;
+}
+
+float SpecularNormalizeFactor(float glossiness)
+{
+    return (glossiness + 2) / 8;
+}
+
+float3 DistributionTerm(float3 halfway_vec, float3 normal, float glossiness)
+{
+    return exp((glossiness + 0.775f) * (max(dot(halfway_vec, normal), 0.0f) - 1));
+}
+
+float3 SpecularTerm(float3 c_spec, float3 light_vec, float3 halfway_vec, float3 normal, float glossiness)
+{
+    return SpecularNormalizeFactor(glossiness) * DistributionTerm(halfway_vec, normal, glossiness) *
+           FresnelTerm(light_vec, halfway_vec, c_spec);
+}
+
+float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
+{
+    float3 v = light_pos - pos;
+    float d2 = dot(v, v);
+    float d = sqrt(d2);
+    return 1 / dot(atten, float3(1, d, d2));
+}
+
 float4 CalcLighting(float3 position, float3 normal, float2 tex_coord)
 {
     PbrMaterial mtl = material_buffer[primitive_cb.material_id];
@@ -80,11 +121,24 @@ float4 CalcLighting(float3 position, float3 normal, float2 tex_coord)
     float3 const ambient = 0.1f;
 
     float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
+    float3 const halfway = normalize(light_dir + normal);
     float const n_dot_l = max(0.0f, dot(light_dir, normal));
 
     float3 albedo = mtl.albedo * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+    float opacity = mtl.opacity * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).w;
+    float metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
 
-    return float4(albedo * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.opacity);
+    float const MAX_GLOSSINESS = 8192;
+    float glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
+
+    float3 c_diff = DiffuseColor(albedo, metallic);
+    float3 c_spec = SpecularColor(albedo, metallic);
+
+    float3 shading = AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz) * scene_cb.light_color.rgb *
+                         max((c_diff + SpecularTerm(c_spec, light_dir, halfway, normal, glossiness)) * n_dot_l, 0) +
+                     emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+
+    return float4(albedo * ambient + shading, opacity);
 }
 
 struct RayPayload

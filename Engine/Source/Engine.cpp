@@ -616,6 +616,7 @@ namespace
 
         XMFLOAT4 light_pos;
         XMFLOAT4 light_color;
+        XMFLOAT4 light_falloff;
     };
 
     struct PrimitiveConstantBuffer
@@ -644,7 +645,7 @@ namespace
             VertexBuffer,
             IndexBuffer,
             AlbedoTex,
-            MetalnessGlossinessTex,
+            MetallicGlossinessTex,
             EmissiveTex,
             NormalTex,
             OcclusionTex,
@@ -659,7 +660,7 @@ namespace
             D3D12_GPU_DESCRIPTOR_HANDLE ib_gpu_handle;
 
             D3D12_GPU_DESCRIPTOR_HANDLE albedo_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE metalness_glossiness_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE metallic_glossiness_gpu_handle;
             D3D12_GPU_DESCRIPTOR_HANDLE emissive_gpu_handle;
             D3D12_GPU_DESCRIPTOR_HANDLE normal_gpu_handle;
             D3D12_GPU_DESCRIPTOR_HANDLE occlusion_gpu_handle;
@@ -806,10 +807,11 @@ namespace GoldenSun
             far_plane_ = far_plane;
         }
 
-        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color)
+        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff)
         {
             light_pos_ = pos;
             light_color_ = color;
+            light_falloff_ = falloff;
         }
 
         void Render(ID3D12GraphicsCommandList4* cmd_list)
@@ -827,6 +829,7 @@ namespace GoldenSun
 
                 per_frame_constants_->light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
                 per_frame_constants_->light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
+                per_frame_constants_->light_falloff = XMFLOAT4(light_falloff_.x, light_falloff_.y, light_falloff_.z, 1);
 
                 per_frame_constants_.UploadToGpu(frame_index_);
 
@@ -955,7 +958,7 @@ namespace GoldenSun
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // VB
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // IB
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // albedo
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // metalness glossiness
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // metallic glossiness
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // emissive
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // normal
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // occlusion
@@ -1101,18 +1104,17 @@ namespace GoldenSun
 
                             albedo_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)].Get();
                         }
-                        auto* metalness_glossiness_tex =
-                            material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)].Get();
-                        if (metalness_glossiness_tex == nullptr)
+                        auto* metallic_glossiness_tex =
+                            material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)].Get();
+                        if (metallic_glossiness_tex == nullptr)
                         {
-                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)])
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)])
                             {
-                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
                                     CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 1, 0, 0));
                             }
 
-                            metalness_glossiness_tex =
-                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)].Get();
+                            metallic_glossiness_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)].Get();
                         }
                         auto* emissive_tex = material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)].Get();
                         if (emissive_tex == nullptr)
@@ -1149,7 +1151,7 @@ namespace GoldenSun
                         }
 
                         root_arguments.albedo_gpu_handle = this->CreateTextureSrv(albedo_tex);
-                        root_arguments.metalness_glossiness_gpu_handle = this->CreateTextureSrv(metalness_glossiness_tex);
+                        root_arguments.metallic_glossiness_gpu_handle = this->CreateTextureSrv(metallic_glossiness_tex);
                         root_arguments.emissive_gpu_handle = this->CreateTextureSrv(emissive_tex);
                         root_arguments.normal_gpu_handle = this->CreateTextureSrv(normal_tex);
                         root_arguments.occlusion_gpu_handle = this->CreateTextureSrv(occlusion_tex);
@@ -1275,6 +1277,7 @@ namespace GoldenSun
 
         XMFLOAT3 light_pos_;
         XMFLOAT3 light_color_;
+        XMFLOAT3 light_falloff_;
     };
 
 
@@ -1318,9 +1321,9 @@ namespace GoldenSun
         return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color)
+    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff)
     {
-        return impl_->Light(pos, color);
+        return impl_->Light(pos, color, falloff);
     }
 
     void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)

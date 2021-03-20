@@ -115,13 +115,14 @@ namespace
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, &ai_metallic))
             {
-                material.buffer.metalness = ai_metallic;
+                material.buffer.metallic = ai_metallic;
             }
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_shininess))
             {
                 material.buffer.glossiness = ai_shininess;
             }
+            material.buffer.glossiness = std::max(1.0f, std::min(material.buffer.glossiness, MAX_GLOSSINESS));
 
             if ((material.buffer.opacity < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
             {
@@ -158,7 +159,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
@@ -166,15 +167,15 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
             }
             else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
@@ -182,7 +183,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
@@ -190,7 +191,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &material.buffer.normal_scale);
             }
@@ -200,7 +201,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_HEIGHT, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 material.textures[ConvertToUint(PbrMaterial::TextureSlot::Height)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_LIGHTMAP) > 0)
@@ -208,7 +209,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &material.buffer.occlusion_strength);
             }
