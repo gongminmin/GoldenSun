@@ -56,6 +56,20 @@ namespace GoldenSun
 
     void TestEnvironment::SetUp()
     {
+        {
+            char exe_file[MAX_PATH];
+            uint32_t size = ::GetModuleFileNameA(nullptr, exe_file, static_cast<uint32_t>(std::size(exe_file)));
+            Verify((size != 0) && (size != std::size(exe_file)));
+
+            std::filesystem::path exe_path = exe_file;
+            expected_dir_ = (exe_path.parent_path() / "Test/Expected/").string();
+            result_dir_ = (exe_path.parent_path() / "Test/Result/").string();
+            if (!std::filesystem::exists(result_dir_))
+            {
+                std::filesystem::create_directory(result_dir_);
+            }
+        }
+
         bool debug_dxgi = false;
 
 #ifdef _DEBUG
@@ -628,12 +642,10 @@ namespace GoldenSun
 
     void TestEnvironment::CompareWithExpected(std::string const& expected_name, ID3D12Resource* actual_image, float channel_tolerance)
     {
-        auto expected_image = this->LoadTexture(EXPECTED_DIR + expected_name + ".png");
-
-        std::string const result_dir = EXPECTED_DIR "../Result/";
+        auto expected_image = this->LoadTexture(expected_dir_ + expected_name + ".png");
 
         {
-            std::filesystem::path leaf_dir = result_dir + expected_name;
+            std::filesystem::path leaf_dir = result_dir_ + expected_name;
             leaf_dir = leaf_dir.parent_path();
             if (!std::filesystem::exists(leaf_dir))
             {
@@ -643,7 +655,7 @@ namespace GoldenSun
 
         if (!expected_image)
         {
-            std::string const expected_file = result_dir + expected_name + ".png";
+            std::string const expected_file = result_dir_ + expected_name + ".png";
             std::cout << "Saving expected image to " << expected_file << '\n';
             this->SaveTexture(actual_image, expected_file.c_str());
         }
@@ -652,9 +664,9 @@ namespace GoldenSun
             auto result = this->CompareImages(expected_image.Get(), actual_image, channel_tolerance);
             if (result.error_image)
             {
-                this->SaveTexture(expected_image.Get(), result_dir + expected_name + "_expected.png");
-                this->SaveTexture(actual_image, result_dir + expected_name + "_actual.png");
-                this->SaveTexture(result.error_image.Get(), result_dir + expected_name + "_diff.png");
+                this->SaveTexture(expected_image.Get(), result_dir_ + expected_name + "_expected.png");
+                this->SaveTexture(actual_image, result_dir_ + expected_name + "_actual.png");
+                this->SaveTexture(result.error_image.Get(), result_dir_ + expected_name + "_diff.png");
             }
 
             EXPECT_FALSE(result.format_unmatch);

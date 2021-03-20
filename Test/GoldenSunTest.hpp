@@ -31,6 +31,11 @@ namespace GoldenSun
         void SetUp() override;
         void TearDown() override;
 
+        std::string const& ExpectedDir() const noexcept
+        {
+            return expected_dir_;
+        }
+
         ID3D12Device5* Device() const noexcept
         {
             return device_.Get();
@@ -75,6 +80,9 @@ namespace GoldenSun
         void CompareWithExpected(std::string const& expected_name, ID3D12Resource* actual_image, float channel_tolerance = 1 / 255.0f);
 
     private:
+        std::string expected_dir_;
+        std::string result_dir_;
+
         ComPtr<IDXGIFactory4> dxgi_factory_;
         ComPtr<ID3D12Device5> device_;
         ComPtr<ID3D12CommandQueue> cmd_queue_;

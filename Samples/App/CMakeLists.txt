@@ -36,6 +36,6 @@ target_link_libraries(${exe_name}
         GoldenSunEngine
         assimp stb
 )
-add_dependencies(${exe_name} GoldenSunEngine CopyAssets)
+add_dependencies(${exe_name} CopyAssets)
 
 GoldenSunAddPrecompiledHeader(${exe_name} "pch.hpp")
