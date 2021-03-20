@@ -530,12 +530,6 @@ namespace
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
 
-    template <typename T>
-    static constexpr uint32_t ConvertToUint(T value)
-    {
-        return static_cast<uint32_t>(value);
-    }
-
     struct SceneConstantBuffer
     {
         XMFLOAT4X4 inv_view_proj;
@@ -654,18 +648,18 @@ namespace GoldenSun
                 }
 
                 uint32_t const num_materials = material_start_indices_.back();
-                StructuredBuffer<PbrMaterial> mb(device_.Get(), num_materials, 1, L"Material Buffer");
+                StructuredBuffer<PbrMaterial::Buffer> mb(device_.Get(), num_materials, 1, L"Material Buffer");
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
                     {
-                        mb[material_start_indices_[i] + j] = meshes[i].Material(j);
+                        mb[material_start_indices_[i] + j] = meshes[i].Material(j).buffer;
                     }
                 }
                 mb.UploadToGpu();
 
                 material_buffer_.resource = mb.Resource();
-                this->CreateBufferSrv(material_buffer_, num_materials, sizeof(PbrMaterial));
+                this->CreateBufferSrv(material_buffer_, num_materials, sizeof(PbrMaterial::Buffer));
             }
 
             {

@@ -24,7 +24,38 @@ namespace GoldenSun
 
     struct PbrMaterial
     {
-        DirectX::XMFLOAT4 albedo;
+        // Must match PbrMaterial in shader
+        struct Buffer
+        {
+            alignas(4) DirectX::XMFLOAT3 albedo{0, 0, 0};
+            alignas(4) float opacity{1};
+            alignas(4) DirectX::XMFLOAT3 emissive{0, 0, 0};
+            alignas(4) float metalness{0};
+            alignas(4) float glossiness{1};
+            alignas(4) float alpha_test{0};
+            alignas(4) float normal_scale{1};
+            alignas(4) float occlusion_strength{1};
+            alignas(4) bool transparent{false};
+            alignas(4) bool two_sided{false};
+            alignas(4) uint8_t paddings[8]{};
+        };
+        static_assert(sizeof(Buffer) % 16 == 0);
+
+        Buffer buffer;
+
+        enum class TextureSlot
+        {
+            Albedo,
+            MetalnessGlossiness,
+            Emissive,
+            Normal,
+            Height,
+            Occlusion,
+
+            Num
+        };
+
+        std::array<std::string, ConvertToUint(TextureSlot::Num)> textures;
     };
 
     class GOLDEN_SUN_API Mesh

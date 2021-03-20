@@ -62,7 +62,8 @@ TEST_F(RayCastingTest, SingleObject)
     Index const cube_indices[] = {
         3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
 
-    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
+    PbrMaterial mtl;
+    mtl.buffer.albedo = {1.0f, 1.0f, 1.0f};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -85,7 +86,7 @@ TEST_F(RayCastingTest, SingleObject)
     {
         auto& mesh = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
-        mesh.AddMaterial(mtls[0]);
+        mesh.AddMaterial(mtl);
         mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
 
         XMFLOAT4X4 world;
@@ -160,7 +161,9 @@ TEST_F(RayCastingTest, MultipleObjects)
 
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
-    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}};
+    PbrMaterial mtls[2];
+    mtls[0].buffer.albedo = {1.0f, 1.0f, 1.0f};
+    mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
@@ -269,7 +272,10 @@ TEST_F(RayCastingTest, Instancing)
 
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
-    PbrMaterial const mtls[] = {{{1.0f, 1.0f, 1.0f, 1.0f}}, {{0.4f, 1.0f, 0.3f, 1.0f}}, {{0.8f, 0.4f, 0.6f, 1.0f}}};
+    PbrMaterial mtls[3];
+    mtls[0].buffer.albedo = {1.0f, 1.0f, 1.0f};
+    mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
+    mtls[2].buffer.albedo = {0.8f, 0.4f, 0.6f};
 
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};

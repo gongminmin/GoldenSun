@@ -12,13 +12,6 @@ namespace GoldenSun
 {
     static constexpr uint32_t FrameCount = 3;
 
-    template <uint32_t Alignment>
-    constexpr uint32_t Align(uint32_t size) noexcept
-    {
-        static_assert((Alignment & (Alignment - 1)) == 0);
-        return (size + (Alignment - 1)) & ~(Alignment - 1);
-    }
-
     DXGI_FORMAT GOLDEN_SUN_API LinearFormatOf(DXGI_FORMAT fmt) noexcept;
     DXGI_FORMAT GOLDEN_SUN_API SRGBFormatOf(DXGI_FORMAT fmt) noexcept;
 
@@ -180,10 +173,9 @@ namespace GoldenSun
     template <typename T>
     class StructuredBuffer : public GpuUploadBuffer
     {
-        static_assert(std::is_pod<T>::value);
-
     public:
         using value_type = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+        static_assert(std::is_standard_layout<value_type>::value);
 
     public:
         // Performance tip: Align structures on 16-byte boundary

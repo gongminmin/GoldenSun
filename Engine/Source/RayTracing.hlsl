@@ -9,7 +9,17 @@ struct SceneConstantBuffer
 
 struct PbrMaterial
 {
-    float4 albedo;
+    float3 albedo;
+    float opacity;
+    float3 emissive;
+    float metalness;
+    float glossiness;
+    float alpha_test;
+    float normal_scale;
+    float occlusion_strength;
+    bool transparent;
+    bool two_sided;
+    uint2 paddings;
 };
 
 struct Vertex
@@ -64,7 +74,7 @@ float4 CalcLighting(float3 position, float3 normal)
     float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
     float const n_dot_l = max(0.0f, dot(light_dir, normal));
 
-    return float4(mtl.albedo.rgb * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.albedo.a);
+    return float4(mtl.albedo * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.opacity);
 }
 
 struct RayPayload

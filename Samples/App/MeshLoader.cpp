@@ -76,38 +76,58 @@ namespace
 
         for (uint32_t mi = 0; mi < ai_scene->mNumMaterials; ++mi)
         {
-            XMFLOAT3 albedo(0, 0, 0);
-            float opacity = 1;
-            bool transparent = false;
-            float alpha_test = 0;
+            auto& material = materials.emplace_back();
 
-            aiString ai_name;
             aiColor4D ai_albedo(0, 0, 0, 0);
             float ai_opacity = 1;
+            float ai_metallic = 0;
+            float ai_shininess = 1;
+            aiColor4D ai_emissive(0, 0, 0, 0);
+            int ai_two_sided = 0;
             float ai_alpha_test = 0;
 
             auto const* const mtl = ai_scene->mMaterials[mi];
 
             if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, &ai_albedo))
             {
-                albedo = Color4ToFloat3(ai_albedo);
-                opacity = ai_albedo.a;
+                material.buffer.albedo = Color4ToFloat3(ai_albedo);
+                material.buffer.opacity = ai_albedo.a;
             }
             else
             {
                 if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE, &ai_albedo))
                 {
-                    albedo = Color4ToFloat3(ai_albedo);
+                    material.buffer.albedo = Color4ToFloat3(ai_albedo);
                 }
                 if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_OPACITY, &ai_opacity))
                 {
-                    opacity = ai_opacity;
+                    material.buffer.opacity = ai_opacity;
                 }
             }
 
-            if ((opacity < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
+            if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_EMISSIVE, &ai_emissive))
             {
-                transparent = true;
+                material.buffer.emissive = Color4ToFloat3(ai_emissive);
+            }
+
+            if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, &ai_metallic))
+            {
+                material.buffer.metalness = ai_metallic;
+            }
+
+            if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_shininess))
+            {
+                material.buffer.glossiness = ai_shininess;
+            }
+
+            if ((material.buffer.opacity < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
+            {
+                material.buffer.transparent = true;
+            }
+
+            if (AI_SUCCESS == aiGetMaterialInteger(mtl, AI_MATKEY_TWOSIDED, &ai_two_sided))
+            {
+                material.buffer.two_sided = ai_two_sided ? true : false;
             }
 
             aiString ai_alpha_mode;
@@ -117,21 +137,71 @@ namespace
                 {
                     if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_ALPHACUTOFF, &ai_alpha_test))
                     {
-                        alpha_test = ai_alpha_test;
+                        material.buffer.alpha_test = ai_alpha_test;
                     }
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "BLEND") == 0)
                 {
-                    transparent = true;
+                    material.buffer.transparent = true;
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "OPAQUE") == 0)
                 {
-                    transparent = false;
+                    material.buffer.transparent = false;
                 }
             }
 
-            auto& material = materials.emplace_back();
-            material.albedo = {albedo.x, albedo.y, albedo.z, opacity};
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_DIFFUSE) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] = str.C_Str();
+            }
+
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
+                    nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] = str.C_Str();
+            }
+            else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] = str.C_Str();
+            }
+
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] = str.C_Str();
+            }
+
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] = str.C_Str();
+
+                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &material.buffer.normal_scale);
+            }
+
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_HEIGHT) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_HEIGHT, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Height)] = str.C_Str();
+            }
+
+            if (aiGetMaterialTextureCount(mtl, aiTextureType_LIGHTMAP) > 0)
+            {
+                aiString str;
+                aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] = str.C_Str();
+
+                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &material.buffer.occlusion_strength);
+            }
         }
 
         return materials;
