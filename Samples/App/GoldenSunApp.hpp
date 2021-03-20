@@ -82,6 +82,8 @@ namespace GoldenSun
         float app_time_ = 0;
         float frame_time_ = 0;
 
+        std::vector<Mesh> meshes_;
+
         DirectX::XMFLOAT3 eye_;
         DirectX::XMFLOAT3 look_at_;
         DirectX::XMFLOAT3 up_;

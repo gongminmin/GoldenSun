@@ -1,7 +1,9 @@
 #include "pch.hpp"
 
 #include "MeshLoader.hpp"
+#include "TextureLoader.hpp"
 
+#include <filesystem>
 #include <iostream>
 
 #include <assimp/Importer.hpp>
@@ -70,7 +72,8 @@ namespace
         }
     }
 
-    std::vector<PbrMaterial> BuildMaterials(aiScene const* ai_scene)
+    std::vector<PbrMaterial> BuildMaterials(
+        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, aiScene const* ai_scene, std::filesystem::path const& asset_path)
     {
         std::vector<PbrMaterial> materials;
 
@@ -154,7 +157,8 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
@@ -162,27 +166,31 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
             }
             else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &material.buffer.normal_scale);
             }
@@ -191,14 +199,16 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_HEIGHT, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Height)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Height)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_LIGHTMAP) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] = str.C_Str();
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
+                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &material.buffer.occlusion_strength);
             }
@@ -246,6 +256,7 @@ namespace
             }
 
             bool has_normal = (ai_mesh->mNormals != nullptr);
+            bool has_texcoord = (ai_mesh->mTextureCoords[0] != nullptr);
 
             std::vector<Vertex> vertices(ai_mesh->mNumVertices);
             for (uint32_t vi = 0; vi < ai_mesh->mNumVertices; ++vi)
@@ -255,6 +266,11 @@ namespace
                 if (has_normal)
                 {
                     vertices[vi].normal = XMFLOAT3(&ai_mesh->mNormals[vi].x);
+                }
+
+                if (has_texcoord)
+                {
+                    vertices[vi].tex_coord = XMFLOAT2(&ai_mesh->mTextureCoords[0][vi].x);
                 }
             }
 
@@ -293,7 +309,7 @@ namespace
 
 namespace GoldenSun
 {
-    std::vector<Mesh> LoadMesh(ID3D12Device5* device, std::string_view file_name)
+    std::vector<Mesh> LoadMesh(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name)
     {
         uint32_t const ppsteps = aiProcess_JoinIdenticalVertices      // join identical vertices/ optimize indexing
                                  | aiProcess_ValidateDataStructure    // perform a full validation of the loader's output
@@ -316,7 +332,9 @@ namespace GoldenSun
         std::vector<Mesh> meshes;
         if (ai_scene)
         {
-            std::vector<PbrMaterial> materials = BuildMaterials(ai_scene);
+            std::filesystem::path file_path = file_name;
+
+            std::vector<PbrMaterial> materials = BuildMaterials(device, cmd_list, ai_scene, file_path.parent_path());
             meshes = BuildMeshData(device, ai_scene, materials);
             BuildNodeData(ai_scene->mRootNode, XMMatrixIdentity(), meshes);
         }

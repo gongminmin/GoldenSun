@@ -9,5 +9,5 @@
 
 namespace GoldenSun
 {
-    std::vector<Mesh> LoadMesh(ID3D12Device5* device, std::string_view file_name);
+    std::vector<Mesh> LoadMesh(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name);
 }

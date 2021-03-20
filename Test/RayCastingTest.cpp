@@ -94,12 +94,12 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddInstance(world);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
-
     test_env.BeginFrame();
 
     auto* cmd_list = test_env.CommandList();
     TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+
+    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     golden_sun_engine_->Render(cmd_list);
 
@@ -205,12 +205,12 @@ TEST_F(RayCastingTest, MultipleObjects)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
-
     test_env.BeginFrame();
 
     auto* cmd_list = test_env.CommandList();
     TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+
+    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     golden_sun_engine_->Render(cmd_list);
 
@@ -322,12 +322,12 @@ TEST_F(RayCastingTest, Instancing)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
-
     test_env.BeginFrame();
 
     auto* cmd_list = test_env.CommandList();
     TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+
+    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     golden_sun_engine_->Render(cmd_list);
 

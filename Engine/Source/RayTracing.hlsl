@@ -26,6 +26,7 @@ struct Vertex
 {
     float3 position;
     float3 normal;
+    float2 tex_coord;
 };
 
 struct PrimitiveConstantBuffer
@@ -39,9 +40,16 @@ RWTexture2D<float4> render_target : register(u0, space0);
 ConstantBuffer<SceneConstantBuffer> scene_cb : register(b0, space0);
 StructuredBuffer<PbrMaterial> material_buffer : register(t1, space0);
 
+SamplerState linear_wrap_sampler : register(s0, space0);
+
 ConstantBuffer<PrimitiveConstantBuffer> primitive_cb : register(b0, space1);
 StructuredBuffer<Vertex> vertex_buffer : register(t0, space1);
 ByteAddressBuffer index_buffer : register(t1, space1);
+Texture2D albedo_tex : register(t2, space1);
+Texture2D metalness_glossiness_tex : register(t3, space1);
+Texture2D emissive_tex : register(t4, space1);
+Texture2D normal_tex : register(t5, space1);
+Texture2D occlusion_tex : register(t6, space1);
 
 uint3 Load3x16BitIndices(uint offset_bytes)
 {
@@ -65,7 +73,7 @@ uint3 Load3x16BitIndices(uint offset_bytes)
     return ret;
 }
 
-float4 CalcLighting(float3 position, float3 normal)
+float4 CalcLighting(float3 position, float3 normal, float2 tex_coord)
 {
     PbrMaterial mtl = material_buffer[primitive_cb.material_id];
 
@@ -74,7 +82,9 @@ float4 CalcLighting(float3 position, float3 normal)
     float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
     float const n_dot_l = max(0.0f, dot(light_dir, normal));
 
-    return float4(mtl.albedo * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.opacity);
+    float3 albedo = mtl.albedo * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+
+    return float4(albedo * (ambient + scene_cb.light_color.rgb * n_dot_l), mtl.opacity);
 }
 
 struct RayPayload
@@ -119,7 +129,12 @@ void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAt
     float3 const normal = vertex_normals[0] + attr.barycentrics.x * (vertex_normals[1] - vertex_normals[0]) +
                           attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
 
-    payload.color = CalcLighting(hit_position, normal);
+    float2 const vertex_tex_coords[] = {
+        vertex_buffer[indices[0]].tex_coord, vertex_buffer[indices[1]].tex_coord, vertex_buffer[indices[2]].tex_coord};
+    float2 const tex_coord = vertex_tex_coords[0] + attr.barycentrics.x * (vertex_tex_coords[1] - vertex_tex_coords[0]) +
+                             attr.barycentrics.y * (vertex_tex_coords[2] - vertex_tex_coords[0]);
+
+    payload.color = CalcLighting(hit_position, normal, tex_coord);
 }
 
 [shader("miss")]

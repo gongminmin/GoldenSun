@@ -18,6 +18,7 @@ namespace GoldenSun
     {
         DirectX::XMFLOAT3 position;
         DirectX::XMFLOAT3 normal;
+        DirectX::XMFLOAT2 tex_coord;
     };
 
     using Index = uint16_t;
@@ -55,7 +56,7 @@ namespace GoldenSun
             Num
         };
 
-        std::array<std::string, ConvertToUint(TextureSlot::Num)> textures;
+        std::array<ComPtr<ID3D12Resource>, ConvertToUint(TextureSlot::Num)> textures;
     };
 
     class GOLDEN_SUN_API Mesh

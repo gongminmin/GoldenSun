@@ -14,6 +14,9 @@
 #include <type_traits>
 #include <vector>
 
+#include <DirectXMath.h>
+#include <DirectXPackedVector.h>
+
 #include "AccelerationStructure.hpp"
 
 #include "CompiledShaders/RayTracing.h"
@@ -530,6 +533,82 @@ namespace
         return SUCCEEDED(hr) && (feature_support_data.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     }
 
+    void UploadTexture(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, ID3D12Resource* texture, void const* data)
+    {
+        auto const tex_desc = texture->GetDesc();
+        uint32_t const width = static_cast<uint32_t>(tex_desc.Width);
+        uint32_t const height = tex_desc.Height;
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
+        uint32_t num_row = 0;
+        uint64_t row_size_in_bytes = 0;
+        uint64_t required_size = 0;
+        device->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
+
+        GpuUploadBuffer upload_buffer(device, required_size, L"UploadBuffer");
+
+        assert(row_size_in_bytes >= width * 4);
+
+        uint8_t* tex_data = upload_buffer.MappedData<uint8_t>();
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            memcpy(tex_data + y * row_size_in_bytes, static_cast<uint8_t const*>(data) + y * width * 4, width * 4);
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION src;
+        src.pResource = upload_buffer.Resource();
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint = layout;
+
+        D3D12_TEXTURE_COPY_LOCATION dst;
+        dst.pResource = texture;
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = 0;
+
+        D3D12_BOX src_box;
+        src_box.left = 0;
+        src_box.top = 0;
+        src_box.front = 0;
+        src_box.right = width;
+        src_box.bottom = height;
+        src_box.back = 1;
+
+        D3D12_RESOURCE_BARRIER barrier;
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = texture;
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        cmd_list->ResourceBarrier(1, &barrier);
+
+        cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, &src_box);
+
+        std::swap(barrier.Transition.StateBefore, barrier.Transition.StateAfter);
+        cmd_list->ResourceBarrier(1, &barrier);
+
+        // TODO: LEAK!! Cache the resource until the command list is executed
+        upload_buffer.Resource()->AddRef();
+    }
+
+    ComPtr<ID3D12Resource> CreateSolidColorTexture(
+        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, DirectX::PackedVector::XMCOLOR fill_color)
+    {
+        ComPtr<ID3D12Resource> ret;
+
+        D3D12_HEAP_PROPERTIES const default_heap_prop = {
+            D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
+
+        D3D12_RESOURCE_DESC const tex_desc = {D3D12_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 1, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, {1, 0},
+            D3D12_TEXTURE_LAYOUT_UNKNOWN, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS};
+        TIFHR(device->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &tex_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            nullptr, UuidOf<ID3D12Resource>(), ret.PutVoid()));
+
+        UploadTexture(device, cmd_list, ret.Get(), &fill_color);
+
+        return ret;
+    }
+
     struct SceneConstantBuffer
     {
         XMFLOAT4X4 inv_view_proj;
@@ -564,14 +643,26 @@ namespace
             PrimitiveConstant = 0,
             VertexBuffer,
             IndexBuffer,
+            AlbedoTex,
+            MetalnessGlossinessTex,
+            EmissiveTex,
+            NormalTex,
+            OcclusionTex,
             Count
         };
 
         struct RootArguments
         {
             PrimitiveConstantBuffer cb;
+
             D3D12_GPU_DESCRIPTOR_HANDLE vb_gpu_handle;
             D3D12_GPU_DESCRIPTOR_HANDLE ib_gpu_handle;
+
+            D3D12_GPU_DESCRIPTOR_HANDLE albedo_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE metalness_glossiness_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE emissive_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE normal_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE occlusion_gpu_handle;
         };
     };
 
@@ -638,7 +729,7 @@ namespace GoldenSun
             }
         }
 
-        void Geometries(Mesh const* meshes, uint32_t num_meshes)
+        void Geometries(ID3D12GraphicsCommandList4* cmd_list, Mesh const* meshes, uint32_t num_meshes)
         {
             {
                 material_start_indices_.assign(1, 0);
@@ -684,7 +775,7 @@ namespace GoldenSun
                 }
             }
 
-            this->BuildShaderTables(meshes, num_meshes);
+            this->BuildShaderTables(cmd_list, meshes, num_meshes);
 
             for (uint32_t i = 0; i < num_meshes; ++i)
             {
@@ -843,8 +934,18 @@ namespace GoldenSun
                     CreateRootParameterAsDescriptorTable(&ranges[1], 1),
                 };
 
+                D3D12_STATIC_SAMPLER_DESC sampler{};
+                sampler.Filter = D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT;
+                sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+                sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+                sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+                sampler.MaxLOD = D3D12_FLOAT32_MAX;
+                sampler.ShaderRegister = 0;
+                sampler.RegisterSpace = 0;
+                sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
                 D3D12_ROOT_SIGNATURE_DESC const global_root_signature_desc = {
-                    static_cast<uint32_t>(std::size(root_params)), root_params, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE};
+                    static_cast<uint32_t>(std::size(root_params)), root_params, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_NONE};
 
                 ray_tracing_global_root_signature_ = this->SerializeAndCreateRayTracingRootSignature(global_root_signature_desc);
             }
@@ -853,12 +954,22 @@ namespace GoldenSun
                 D3D12_DESCRIPTOR_RANGE const ranges[] = {
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // VB
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // IB
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // albedo
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // metalness glossiness
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // emissive
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // normal
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // occlusion
                 };
 
                 D3D12_ROOT_PARAMETER const root_params[] = {
                     CreateRootParameterAsConstants(Align<sizeof(uint32_t)>(sizeof(PrimitiveConstantBuffer)) / sizeof(uint32_t), 0, 1),
                     CreateRootParameterAsDescriptorTable(&ranges[0], 1),
                     CreateRootParameterAsDescriptorTable(&ranges[1], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[2], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[3], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[4], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[5], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[6], 1),
                 };
 
                 D3D12_ROOT_SIGNATURE_DESC const local_root_signature_desc = {
@@ -918,12 +1029,12 @@ namespace GoldenSun
             desc_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             desc_heap_desc.NodeMask = 0;
             TIFHR(device_->CreateDescriptorHeap(&desc_heap_desc, UuidOf<ID3D12DescriptorHeap>(), descriptor_heap_.PutVoid()));
-            descriptor_heap_->SetName(L"GoldenSun Descriptor Heap");
+            descriptor_heap_->SetName(L"GoldenSun CBV SRV UAV Descriptor Heap");
 
             descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
-        void BuildShaderTables(Mesh const* meshes, uint32_t num_meshes)
+        void BuildShaderTables(ID3D12GraphicsCommandList4* cmd_list, Mesh const* meshes, uint32_t num_meshes)
         {
             void* ray_gen_shader_identifier;
             void* hit_group_shader_identifier;
@@ -977,6 +1088,72 @@ namespace GoldenSun
                         root_arguments.vb_gpu_handle = vertex_buffers_[i].gpu_descriptor_handle;
                         root_arguments.ib_gpu_handle = index_buffers_[i].gpu_descriptor_handle;
 
+                        auto const& material = meshes[i].Material(meshes[i].MaterialId(j));
+
+                        auto* albedo_tex = material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)].Get();
+                        if (albedo_tex == nullptr)
+                        {
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)])
+                            {
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(1, 1, 1, 1));
+                            }
+
+                            albedo_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)].Get();
+                        }
+                        auto* metalness_glossiness_tex =
+                            material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)].Get();
+                        if (metalness_glossiness_tex == nullptr)
+                        {
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)])
+                            {
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)] =
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 1, 0, 0));
+                            }
+
+                            metalness_glossiness_tex =
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetalnessGlossiness)].Get();
+                        }
+                        auto* emissive_tex = material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)].Get();
+                        if (emissive_tex == nullptr)
+                        {
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)])
+                            {
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 0, 0, 0));
+                            }
+
+                            emissive_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)].Get();
+                        }
+                        auto* normal_tex = material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)].Get();
+                        if (normal_tex == nullptr)
+                        {
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)])
+                            {
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 0, 1, 0));
+                            }
+
+                            normal_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)].Get();
+                        }
+                        auto* occlusion_tex = material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)].Get();
+                        if (occlusion_tex == nullptr)
+                        {
+                            if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)])
+                            {
+                                default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(1, 1, 1, 1));
+                            }
+
+                            occlusion_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)].Get();
+                        }
+
+                        root_arguments.albedo_gpu_handle = this->CreateTextureSrv(albedo_tex);
+                        root_arguments.metalness_glossiness_gpu_handle = this->CreateTextureSrv(metalness_glossiness_tex);
+                        root_arguments.emissive_gpu_handle = this->CreateTextureSrv(emissive_tex);
+                        root_arguments.normal_gpu_handle = this->CreateTextureSrv(normal_tex);
+                        root_arguments.occlusion_gpu_handle = this->CreateTextureSrv(occlusion_tex);
+
                         hit_group_shader_table.push_back(
                             ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
                     }
@@ -1023,6 +1200,25 @@ namespace GoldenSun
             return descriptor_index;
         }
 
+        D3D12_GPU_DESCRIPTOR_HANDLE CreateTextureSrv(ID3D12Resource* texture)
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{};
+            srv_desc.Format = texture->GetDesc().Format;
+            srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srv_desc.Texture2D.MostDetailedMip = 0;
+            srv_desc.Texture2D.MipLevels = texture->GetDesc().MipLevels;
+            srv_desc.Texture2D.PlaneSlice = 0;
+            srv_desc.Texture2D.ResourceMinLODClamp = 0;
+
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_desc_handle;
+            uint32_t const descriptor_index = this->AllocateDescriptor(cpu_desc_handle);
+            device_->CreateShaderResourceView(texture, &srv_desc, cpu_desc_handle);
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu_desc_handle = {
+                descriptor_heap_->GetGPUDescriptorHandleForHeapStart().ptr + descriptor_index * descriptor_size_};
+            return gpu_desc_handle;
+        }
+
     private:
         ComPtr<ID3D12Device5> device_;
         ComPtr<ID3D12CommandQueue> cmd_queue_;
@@ -1048,6 +1244,7 @@ namespace GoldenSun
 
         Buffer material_buffer_;
         std::vector<uint32_t> material_start_indices_;
+        std::array<ComPtr<ID3D12Resource>, ConvertToUint(PbrMaterial::TextureSlot::Num)> default_textures_;
 
         std::vector<Buffer> vertex_buffers_;
         std::vector<Buffer> index_buffers_;
@@ -1111,9 +1308,9 @@ namespace GoldenSun
         return impl_->RenderTarget(width, height, format);
     }
 
-    void Engine::Geometries(Mesh const* meshes, uint32_t num_meshes)
+    void Engine::Geometries(ID3D12GraphicsCommandList4* cmd_list, Mesh const* meshes, uint32_t num_meshes)
     {
-        return impl_->Geometries(meshes, num_meshes);
+        return impl_->Geometries(cmd_list, meshes, num_meshes);
     }
 
     void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)

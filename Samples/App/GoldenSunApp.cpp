@@ -121,8 +121,14 @@ namespace GoldenSun
             golden_sun_engine_->Light(light_pos_, light_color_);
         }
 
-        std::vector<Mesh> const meshes = LoadMesh(device_.Get(), asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
-        golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+        TIFHR(cmd_allocators_[frame_index_]->Reset());
+        TIFHR(cmd_list_->Reset(cmd_allocators_[frame_index_].Get(), nullptr));
+
+        meshes_ = LoadMesh(device_.Get(), cmd_list_.Get(), asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
+        golden_sun_engine_->Geometries(cmd_list_.Get(), meshes_.data(), static_cast<uint32_t>(meshes_.size()));
+
+        this->ExecuteCommandList();
+        this->WaitForGpu();
     }
 
     void GoldenSunApp::Active(bool active)
