@@ -46,6 +46,8 @@ namespace GoldenSun
         void FrameStats();
 
     private:
+        std::string asset_dir_;
+
         std::unique_ptr<WindowWin32> window_;
         uint32_t width_;
         uint32_t height_;

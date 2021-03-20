@@ -28,17 +28,12 @@ set_target_properties(${exe_name} PROPERTIES
     FOLDER "Samples"
 )
 
-target_compile_definitions(${exe_name}
-    PRIVATE
-        -DMEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Media/"
-)
-
 target_link_libraries(${exe_name}
     PRIVATE
         d3d12 dxgi dxguid
         GoldenSunEngine
         assimp
 )
-add_dependencies(${exe_name} GoldenSunEngine)
+add_dependencies(${exe_name} GoldenSunEngine CopyAssets)
 
 GoldenSunAddPrecompiledHeader(${exe_name} "pch.hpp")

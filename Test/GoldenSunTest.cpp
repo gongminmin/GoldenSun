@@ -8,6 +8,7 @@
 #include <GoldenSun/Util.hpp>
 #include <GoldenSun/Uuid.hpp>
 
+#include <filesystem>
 #include <iostream>
 
 #include <gtest/gtest.h>
@@ -630,6 +631,16 @@ namespace GoldenSun
         auto expected_image = this->LoadTexture(EXPECTED_DIR + expected_name + ".png");
 
         std::string const result_dir = EXPECTED_DIR "../Result/";
+
+        {
+            std::filesystem::path leaf_dir = result_dir + expected_name;
+            leaf_dir = leaf_dir.parent_path();
+            if (!std::filesystem::exists(leaf_dir))
+            {
+                std::filesystem::create_directory(leaf_dir);
+            }
+        }
+
         if (!expected_image)
         {
             std::string const expected_file = result_dir + expected_name + ".png";

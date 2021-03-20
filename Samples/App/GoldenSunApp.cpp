@@ -4,6 +4,7 @@
 #include "MeshLoader.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <iomanip>
 #include <string>
 
@@ -42,6 +43,15 @@ namespace GoldenSun
 {
     GoldenSunApp::GoldenSunApp(uint32_t width, uint32_t height) : width_(width), height_(height)
     {
+        {
+            char exe_file[MAX_PATH];
+            uint32_t size = ::GetModuleFileNameA(nullptr, exe_file, static_cast<uint32_t>(std::size(exe_file)));
+            Verify((size != 0) && (size != std::size(exe_file)));
+
+            std::filesystem::path exe_path = exe_file;
+            asset_dir_ = (exe_path.parent_path() / "Assets/").string();
+        }
+
         window_ = std::make_unique<WindowWin32>(*this, WindowTitle);
 
         this->CreateDeviceResources();
@@ -111,7 +121,7 @@ namespace GoldenSun
             golden_sun_engine_->Light(light_pos_, light_color_);
         }
 
-        std::vector<Mesh> const meshes = LoadMesh(device_.Get(), MEDIA_DIR "DamagedHelmet/DamagedHelmet.gltf");
+        std::vector<Mesh> const meshes = LoadMesh(device_.Get(), asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
         golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
     }
 

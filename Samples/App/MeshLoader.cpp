@@ -3,7 +3,6 @@
 #include "MeshLoader.hpp"
 
 #include <iostream>
-#include <map>
 
 #include <assimp/Importer.hpp>
 #include <assimp/pbrmaterial.h>
@@ -20,11 +19,7 @@ namespace
 {
     XMFLOAT3 Color4ToFloat3(aiColor4D const& c)
     {
-        XMFLOAT3 v;
-        v.x = c.r;
-        v.y = c.g;
-        v.z = c.b;
-        return v;
+        return XMFLOAT3{c.r, c.g, c.b};
     }
 
     void ComputeNormal(std::vector<Vertex>& vertices, std::vector<Index>& indices) noexcept
@@ -52,10 +47,7 @@ namespace
             XMStoreFloat3(&vertices[i].normal, XMVector3Normalize(normals[i]));
         }
     }
-} // namespace
 
-namespace GoldenSun
-{
     void BuildNodeData(aiNode const* ai_node, XMMATRIX const& parent_to_world, std::vector<Mesh>& meshes)
     {
         auto const ai_transform = XMFLOAT4X4(&ai_node->mTransformation.a1);
@@ -227,8 +219,11 @@ namespace GoldenSun
 
         return meshes;
     }
+} // namespace
 
-    std::vector<Mesh> LoadMesh(ID3D12Device5* device, std::string_view input_name)
+namespace GoldenSun
+{
+    std::vector<Mesh> LoadMesh(ID3D12Device5* device, std::string_view file_name)
     {
         uint32_t const ppsteps = aiProcess_JoinIdenticalVertices      // join identical vertices/ optimize indexing
                                  | aiProcess_ValidateDataStructure    // perform a full validation of the loader's output
@@ -236,30 +231,30 @@ namespace GoldenSun
                                  | aiProcess_FindInstances; // search for instanced meshes and remove them by references to one master
 
         Assimp::Importer importer;
-        aiScene const* ai_scene;
+        importer.SetPropertyInteger(AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
+        importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 80);
+        importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, 0);
+        importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME, 1);
+
+        aiScene const* ai_scene = importer.ReadFile(std::string(file_name).c_str(),
+            ppsteps                             // configurable pp steps
+                | aiProcess_GenSmoothNormals    // generate smooth normal vectors if not existing
+                | aiProcess_Triangulate         // triangulate polygons with more than 3 edges
+                | aiProcess_ConvertToLeftHanded // convert everything to D3D left handed space
+            /*| aiProcess_FixInfacingNormals*/);
+
+        std::vector<Mesh> meshes;
+        if (ai_scene)
         {
-            importer.SetPropertyInteger(AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
-            importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 80);
-            importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, 0);
-            importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME, 1);
-
-            ai_scene = importer.ReadFile(std::string(input_name).c_str(),
-                ppsteps                             // configurable pp steps
-                    | aiProcess_GenSmoothNormals    // generate smooth normal vectors if not existing
-                    | aiProcess_Triangulate         // triangulate polygons with more than 3 edges
-                    | aiProcess_ConvertToLeftHanded // convert everything to D3D left handed space
-                /*| aiProcess_FixInfacingNormals*/);
-
-            if (!ai_scene)
-            {
-                std::cerr << "Assimp: Import file " << input_name << " error: " << importer.GetErrorString() << std::endl;
-                Verify(false);
-            }
+            std::vector<PbrMaterial> materials = BuildMaterials(ai_scene);
+            meshes = BuildMeshData(device, ai_scene, materials);
+            BuildNodeData(ai_scene->mRootNode, XMMatrixIdentity(), meshes);
         }
-
-        std::vector<PbrMaterial> materials = BuildMaterials(ai_scene);
-        std::vector<Mesh> meshes = BuildMeshData(device, ai_scene, materials);
-        BuildNodeData(ai_scene->mRootNode, XMMatrixIdentity(), meshes);
+        else
+        {
+            std::cerr << "Assimp: Import file " << file_name << " error: " << importer.GetErrorString() << std::endl;
+            Verify(false);
+        }
 
         return meshes;
     }
