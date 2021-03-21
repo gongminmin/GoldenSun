@@ -15,7 +15,6 @@
 #include <vector>
 
 #include <DirectXMath.h>
-#include <DirectXPackedVector.h>
 
 #include "AccelerationStructure.hpp"
 
@@ -591,8 +590,7 @@ namespace
         upload_buffer.Resource()->AddRef();
     }
 
-    ComPtr<ID3D12Resource> CreateSolidColorTexture(
-        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, DirectX::PackedVector::XMCOLOR fill_color)
+    ComPtr<ID3D12Resource> CreateSolidColorTexture(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, uint32_t fill_color_rgba)
     {
         ComPtr<ID3D12Resource> ret;
 
@@ -604,7 +602,7 @@ namespace
         TIFHR(device->CreateCommittedResource(&default_heap_prop, D3D12_HEAP_FLAG_NONE, &tex_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             nullptr, UuidOf<ID3D12Resource>(), ret.PutVoid()));
 
-        UploadTexture(device, cmd_list, ret.Get(), &fill_color);
+        UploadTexture(device, cmd_list, ret.Get(), &fill_color_rgba);
 
         return ret;
     }
@@ -1099,7 +1097,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(1, 1, 1, 1));
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0xFFFFFFFFU);
                             }
 
                             albedo_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)].Get();
@@ -1111,7 +1109,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 1, 0, 0));
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0x00FF0000U);
                             }
 
                             metallic_glossiness_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)].Get();
@@ -1122,7 +1120,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 0, 0, 0));
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0x00000000U);
                             }
 
                             emissive_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)].Get();
@@ -1133,7 +1131,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(0, 0, 1, 0));
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0x00FF8080U);
                             }
 
                             normal_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)].Get();
@@ -1144,7 +1142,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, PackedVector::XMCOLOR(1, 1, 1, 1));
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0xFFFFFFFFU);
                             }
 
                             occlusion_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)].Get();

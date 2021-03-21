@@ -17,7 +17,7 @@ namespace GoldenSun
     struct Vertex
     {
         DirectX::XMFLOAT3 position;
-        DirectX::XMFLOAT3 normal;
+        DirectX::XMFLOAT4 tangent_quat;
         DirectX::XMFLOAT2 tex_coord;
     };
 

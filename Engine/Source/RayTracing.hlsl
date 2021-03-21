@@ -26,7 +26,7 @@ struct PbrMaterial
 struct Vertex
 {
     float3 position;
-    float3 normal;
+    float4 tangent_quat;
     float2 tex_coord;
 };
 
@@ -97,7 +97,7 @@ float SpecularNormalizeFactor(float glossiness)
 
 float3 DistributionTerm(float3 halfway_vec, float3 normal, float glossiness)
 {
-    return exp((glossiness + 0.775f) * (max(dot(halfway_vec, normal), 0.0f) - 1));
+    return exp((glossiness + 0.775f) * (max(dot(halfway_vec, normal), 0) - 1));
 }
 
 float3 SpecularTerm(float3 c_spec, float3 light_vec, float3 halfway_vec, float3 normal, float glossiness)
@@ -114,29 +114,38 @@ float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
     return 1 / dot(atten, float3(1, d, d2));
 }
 
-float4 CalcLighting(float3 position, float3 normal, float2 tex_coord)
+float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord)
 {
     PbrMaterial mtl = material_buffer[primitive_cb.material_id];
 
     float3 const ambient = 0.1f;
 
+    float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
+    normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
+
     float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
     float3 const halfway = normalize(light_dir + normal);
-    float const n_dot_l = max(0.0f, dot(light_dir, normal));
+    float const n_dot_l = max(dot(light_dir, normal), 0);
 
-    float3 albedo = mtl.albedo * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
-    float opacity = mtl.opacity * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).w;
-    float metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
+    float3 const albedo = mtl.albedo * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+    float const opacity = mtl.opacity * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).w;
+    float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
 
     float const MAX_GLOSSINESS = 8192;
-    float glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
+    float const glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
 
-    float3 c_diff = DiffuseColor(albedo, metallic);
-    float3 c_spec = SpecularColor(albedo, metallic);
+    float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
 
-    float3 shading = AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz) * scene_cb.light_color.rgb *
-                         max((c_diff + SpecularTerm(c_spec, light_dir, halfway, normal, glossiness)) * n_dot_l, 0) +
-                     emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+    float const attenuation = AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz);
+
+    float3 const c_diff = DiffuseColor(albedo, metallic);
+    float3 const c_spec = SpecularColor(albedo, metallic);
+
+    float3 const diffuse = c_diff;
+    float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
+
+    float3 const shading = attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * scene_cb.light_color.rgb +
+                           emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
 
     return float4(albedo * ambient + shading, opacity);
 }
@@ -167,6 +176,11 @@ void RayGenShader()
     render_target[DispatchRaysIndex().xy] = payload.color;
 }
 
+float3 TransformQuat(float3 v, float4 quat)
+{
+    return v + cross(quat.xyz, cross(quat.xyz, v) + quat.w * v) * 2;
+}
+
 [shader("closesthit")]
 void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
@@ -179,16 +193,36 @@ void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAt
 
     uint3 const indices = Load3x16BitIndices(base_index);
 
-    float3 const vertex_normals[] = {vertex_buffer[indices[0]].normal, vertex_buffer[indices[1]].normal, vertex_buffer[indices[2]].normal};
+    float3 const vertex_tangents[] = {
+        TransformQuat(float3(1, 0, 0), vertex_buffer[indices[0]].tangent_quat),
+        TransformQuat(float3(1, 0, 0), vertex_buffer[indices[1]].tangent_quat),
+        TransformQuat(float3(1, 0, 0), vertex_buffer[indices[2]].tangent_quat),
+    };
+    float3 const vertex_bitangents[] = {
+        TransformQuat(float3(0, 1, 0), vertex_buffer[indices[0]].tangent_quat),
+        TransformQuat(float3(0, 1, 0), vertex_buffer[indices[1]].tangent_quat),
+        TransformQuat(float3(0, 1, 0), vertex_buffer[indices[2]].tangent_quat),
+    };
+    float3 const vertex_normals[] = {
+        TransformQuat(float3(0, 0, 1), vertex_buffer[indices[0]].tangent_quat),
+        TransformQuat(float3(0, 0, 1), vertex_buffer[indices[1]].tangent_quat),
+        TransformQuat(float3(0, 0, 1), vertex_buffer[indices[2]].tangent_quat),
+    };
+
+    float3 const tangent = vertex_tangents[0] + attr.barycentrics.x * (vertex_tangents[1] - vertex_tangents[0]) +
+                           attr.barycentrics.y * (vertex_tangents[2] - vertex_tangents[0]);
+    float3 const bitangent = vertex_bitangents[0] + attr.barycentrics.x * (vertex_bitangents[1] - vertex_bitangents[0]) +
+                             attr.barycentrics.y * (vertex_bitangents[2] - vertex_bitangents[0]);
     float3 const normal = vertex_normals[0] + attr.barycentrics.x * (vertex_normals[1] - vertex_normals[0]) +
-                          attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
+                           attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
+    float3x3 const tangent_frame = {normalize(tangent), normalize(bitangent), normalize(normal)};
 
     float2 const vertex_tex_coords[] = {
         vertex_buffer[indices[0]].tex_coord, vertex_buffer[indices[1]].tex_coord, vertex_buffer[indices[2]].tex_coord};
     float2 const tex_coord = vertex_tex_coords[0] + attr.barycentrics.x * (vertex_tex_coords[1] - vertex_tex_coords[0]) +
                              attr.barycentrics.y * (vertex_tex_coords[2] - vertex_tex_coords[0]);
 
-    payload.color = CalcLighting(hit_position, normal, tex_coord);
+    payload.color = CalcLighting(hit_position, tangent_frame, tex_coord);
 }
 
 [shader("miss")]

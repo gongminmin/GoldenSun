@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <limits>
 
 #include <assimp/Importer.hpp>
 #include <assimp/pbrmaterial.h>
@@ -24,30 +25,126 @@ namespace
         return XMFLOAT3{c.r, c.g, c.b};
     }
 
-    void ComputeNormal(std::vector<Vertex>& vertices, std::vector<Index>& indices) noexcept
+    void ComputeNormal(std::vector<XMVECTOR> const& positions, std::vector<XMVECTOR>& normals, std::vector<Index> const& indices) noexcept
     {
-        std::vector<XMVECTOR> normals(vertices.size(), XMVectorZero());
+        normals.assign(positions.size(), XMVectorZero());
+
         for (uint32_t i = 0; i < indices.size(); i += 3)
         {
-            uint32_t const v0_index = indices[0];
-            uint32_t const v1_index = indices[1];
-            uint32_t const v2_index = indices[2];
+            uint32_t const v0_index = indices[i + 0];
+            uint32_t const v1_index = indices[i + 1];
+            uint32_t const v2_index = indices[i + 2];
 
-            XMVECTOR v0 = XMLoadFloat3(&vertices[v0_index].position);
-            XMVECTOR v1 = XMLoadFloat3(&vertices[v1_index].position);
-            XMVECTOR v2 = XMLoadFloat3(&vertices[v2_index].position);
+            XMVECTOR const& v0 = positions[v0_index];
+            XMVECTOR const& v1 = positions[v1_index];
+            XMVECTOR const& v2 = positions[v2_index];
 
-            XMVECTOR normal = XMVector3Cross(v1 - v0, v2 - v0);
+            XMVECTOR const normal = XMVector3Cross(v1 - v0, v2 - v0);
 
             normals[v0_index] += normal;
             normals[v1_index] += normal;
             normals[v2_index] += normal;
         }
 
-        for (size_t i = 0; i < vertices.size(); ++i)
+        for (auto& normal : normals)
         {
-            XMStoreFloat3(&vertices[i].normal, XMVector3Normalize(normals[i]));
+            normal = XMVectorSetW(XMVector3Normalize(normal), 0);
         }
+    }
+
+    void ComputeTangent(std::vector<XMVECTOR> const& positions, std::vector<XMVECTOR> const& normals,
+        std::vector<XMVECTOR> const& tex_coords, std::vector<Index> const& indices, std::vector<XMVECTOR>& tangents,
+        std::vector<XMVECTOR>& bitangents) noexcept
+    {
+        tangents.assign(positions.size(), XMVectorZero());
+        bitangents.assign(positions.size(), XMVectorZero());
+
+        for (uint32_t i = 0; i < indices.size(); i += 3)
+        {
+            uint32_t const v0_index = indices[i + 0];
+            uint32_t const v1_index = indices[i + 1];
+            uint32_t const v2_index = indices[i + 2];
+
+            XMVECTOR const& v0 = positions[v0_index];
+            XMVECTOR const& v1 = positions[v1_index];
+            XMVECTOR const& v2 = positions[v2_index];
+
+            XMVECTOR const v1v0 = v1 - v0;
+            XMVECTOR const v2v0 = v2 - v0;
+
+            XMVECTOR const& v0_tex = tex_coords[v0_index];
+            XMVECTOR const& v1_tex = tex_coords[v1_index];
+            XMVECTOR const& v2_tex = tex_coords[v2_index];
+
+            XMVECTOR const st1 = v1_tex - v0_tex;
+            XMVECTOR const st2 = v2_tex - v0_tex;
+
+            float const denominator = XMVectorGetX(st1) * XMVectorGetY(st2) - XMVectorGetX(st2) * XMVectorGetY(st1);
+            XMVECTOR tangent, bitangent;
+            if (std::abs(denominator) < std::numeric_limits<float>::epsilon())
+            {
+                tangent = XMVectorSet(1, 0, 0, 0);
+                bitangent = XMVectorSet(0, 1, 0, 0);
+            }
+            else
+            {
+                tangent = (XMVectorGetY(st2) * v1v0 - XMVectorGetY(st1) * v2v0) / denominator;
+                bitangent = (XMVectorGetX(st1) * v2v0 - XMVectorGetX(st2) * v1v0) / denominator;
+            }
+
+            tangents[v0_index] += tangent;
+            bitangents[v0_index] += bitangent;
+
+            tangents[v1_index] += tangent;
+            bitangents[v1_index] += bitangent;
+
+            tangents[v2_index] += tangent;
+            bitangents[v2_index] += bitangent;
+        }
+
+        for (size_t i = 0; i < positions.size(); ++i)
+        {
+            XMVECTOR tangent = tangents[i];
+            XMVECTOR bitangent = bitangents[i];
+            XMVECTOR const normal = normals[i];
+
+            // Gram-Schmidt orthogonalize
+            tangent = XMVector3Normalize(tangent - normal * XMVector3Dot(tangent, normal));
+            tangent = XMVectorSetW(tangent, 0);
+            tangents[i] = tangent;
+
+            XMVECTOR bitangent_cross = XMVector3Cross(normal, tangent);
+            // Calculate handedness
+            if (XMVectorGetX(XMVector3Dot(bitangent_cross, bitangent)) < 0)
+            {
+                bitangent_cross = -bitangent_cross;
+            }
+            bitangent_cross = XMVectorSetW(bitangent_cross, 0);
+
+            bitangents[i] = bitangent_cross;
+        }
+    }
+
+    XMVECTOR ToQuaternion(XMVECTOR const& tangent, XMVECTOR const& bitangent, XMVECTOR const& normal) noexcept
+    {
+        float k = 1;
+        if (XMVectorGetX(XMVector3Dot(bitangent, XMVector3Cross(normal, tangent))) < 0)
+        {
+            k = -1;
+        }
+
+        XMMATRIX const tangent_frame(tangent, k * bitangent, normal, XMVectorSet(0, 0, 0, 1));
+        XMVECTOR tangent_quat = XMQuaternionRotationMatrix(tangent_frame);
+        if (XMVectorGetW(tangent_quat) < 0)
+        {
+            tangent_quat = -tangent_quat;
+        }
+        if (k < 0)
+        {
+            tangent_quat = -tangent_quat;
+        }
+
+        return tangent_quat;
     }
 
     void BuildNodeData(aiNode const* ai_node, XMMATRIX const& parent_to_world, std::vector<Mesh>& meshes)
@@ -257,29 +354,58 @@ namespace
             }
 
             bool has_normal = (ai_mesh->mNormals != nullptr);
+            bool has_tangent = (ai_mesh->mTangents != nullptr);
+            bool has_bitangent = (ai_mesh->mBitangents != nullptr);
             bool has_texcoord = (ai_mesh->mTextureCoords[0] != nullptr);
 
-            std::vector<Vertex> vertices(ai_mesh->mNumVertices);
+            std::vector<XMVECTOR> positions(ai_mesh->mNumVertices);
+            std::vector<XMVECTOR> normals(ai_mesh->mNumVertices);
+            std::vector<XMVECTOR> tangents(ai_mesh->mNumVertices);
+            std::vector<XMVECTOR> bitangents(ai_mesh->mNumVertices);
+            std::vector<XMVECTOR> tex_coords(ai_mesh->mNumVertices);
             for (uint32_t vi = 0; vi < ai_mesh->mNumVertices; ++vi)
             {
-                vertices[vi].position = XMFLOAT3(&ai_mesh->mVertices[vi].x);
+                positions[vi] = XMLoadFloat3(reinterpret_cast<XMFLOAT3 const*>(&ai_mesh->mVertices[vi].x));
 
                 if (has_normal)
                 {
-                    vertices[vi].normal = XMFLOAT3(&ai_mesh->mNormals[vi].x);
+                    normals[vi] = XMLoadFloat3(reinterpret_cast<XMFLOAT3 const*>(&ai_mesh->mNormals[vi].x));
+                }
+                if (has_tangent)
+                {
+                    tangents[vi] = XMLoadFloat3(reinterpret_cast<XMFLOAT3 const*>(&ai_mesh->mTangents[vi].x));
+                }
+                if (has_bitangent)
+                {
+                    bitangents[vi] = XMLoadFloat3(reinterpret_cast<XMFLOAT3 const*>(&ai_mesh->mBitangents[vi].x));
                 }
 
                 if (has_texcoord)
                 {
-                    vertices[vi].tex_coord = XMFLOAT2(&ai_mesh->mTextureCoords[0][vi].x);
+                    tex_coords[vi] = XMLoadFloat2(reinterpret_cast<XMFLOAT2 const*>(&ai_mesh->mTextureCoords[0][vi].x));
                 }
             }
 
             if (!has_normal)
             {
-                ComputeNormal(vertices, indices);
-
+                ComputeNormal(positions, normals, indices);
                 has_normal = true;
+            }
+
+            if ((!has_tangent || !has_bitangent) && has_texcoord)
+            {
+                ComputeTangent(positions, normals, tex_coords, indices, tangents, bitangents);
+                has_tangent = true;
+            }
+
+            std::vector<Vertex> vertices(ai_mesh->mNumVertices);
+            for (uint32_t vi = 0; vi < ai_mesh->mNumVertices; ++vi)
+            {
+                XMStoreFloat3(&vertices[vi].position, positions[vi]);
+                XMStoreFloat2(&vertices[vi].tex_coord, tex_coords[vi]);
+
+                XMVECTOR const tangent_quat = ToQuaternion(tangents[vi], bitangents[vi], normals[vi]);
+                XMStoreFloat4(&vertices[vi].tangent_quat, tangent_quat);
             }
 
             D3D12_HEAP_PROPERTIES const upload_heap_prop = {

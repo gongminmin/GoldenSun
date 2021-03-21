@@ -14,7 +14,7 @@ using namespace GoldenSun;
 namespace GoldenSun
 {
     AccelerationStructure::AccelerationStructure(
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build)
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept
         : build_flags_(build_flags | (allow_update ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE
                                                    : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE)),
           update_on_build_(update_on_build), allow_update_(allow_update)
@@ -101,7 +101,7 @@ namespace GoldenSun
         return *this;
     }
 
-    void BottomLevelAccelerationStructure::UpdateGeometryDescsTransform(D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr)
+    void BottomLevelAccelerationStructure::UpdateGeometryDescsTransform(D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr) noexcept
     {
         for (size_t i = 0; i < geometry_descs_.size(); ++i)
         {
@@ -121,9 +121,7 @@ namespace GoldenSun
         }
 
         frame_index_ = (frame_index_ + 1) % FrameCount;
-        cache_geometry_descs_[frame_index_].clear();
-        cache_geometry_descs_[frame_index_].resize(geometry_descs_.size());
-        std::copy(geometry_descs_.begin(), geometry_descs_.end(), cache_geometry_descs_[frame_index_].begin());
+        cache_geometry_descs_[frame_index_] = geometry_descs_;
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottom_level_build_desc{};
         auto& bottom_level_inputs = bottom_level_build_desc.Inputs;

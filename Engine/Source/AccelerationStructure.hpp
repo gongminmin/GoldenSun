@@ -60,7 +60,8 @@ namespace GoldenSun
         }
 
     protected:
-        AccelerationStructure(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build);
+        AccelerationStructure(
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept;
 
         void CreateResource(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
             D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, wchar_t const* name);
@@ -90,7 +91,7 @@ namespace GoldenSun
         void Build(
             ID3D12GraphicsCommandList4* cmd_list, ID3D12Resource* scratch, D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr = 0);
 
-        void UpdateGeometryDescsTransform(D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr);
+        void UpdateGeometryDescsTransform(D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr) noexcept;
 
         uint32_t InstanceContributionToHitGroupIndex() const noexcept
         {
