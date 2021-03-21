@@ -1,7 +1,5 @@
 #include "pch.hpp"
 
-#include <GoldenSun/Util.hpp>
-
 #include <iomanip>
 #include <sstream>
 

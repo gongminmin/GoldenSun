@@ -23,6 +23,8 @@ source_group("Header Files" FILES ${header_files})
 
 add_executable(${exe_name} WIN32 ${source_files} ${header_files})
 
+GoldenSunAddPrecompiledHeader(${exe_name} "pch.hpp")
+
 set_target_properties(${exe_name} PROPERTIES
     PROJECT_LABEL ${exe_name}
     DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
@@ -32,10 +34,9 @@ set_target_properties(${exe_name} PROPERTIES
 
 target_link_libraries(${exe_name}
     PRIVATE
-        d3d12 dxgi dxguid
+        GoldenSunBase
         GoldenSunEngine
+        d3d12 dxgi dxguid
         assimp stb
 )
 add_dependencies(${exe_name} CopyAssets)
-
-GoldenSunAddPrecompiledHeader(${exe_name} "pch.hpp")

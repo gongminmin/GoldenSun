@@ -19,6 +19,7 @@ set(source_files
 
 set(header_files
     GoldenSunTest.hpp
+    pch.hpp
 )
 
 set(shader_files
@@ -36,6 +37,8 @@ add_executable(${exe_name}
     ${source_files} ${header_files} ${shader_files} ${expected_files}
 )
 
+GoldenSunAddPrecompiledHeader(${exe_name} "pch.hpp")
+
 target_include_directories(${exe_name}
     PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}
@@ -43,6 +46,7 @@ target_include_directories(${exe_name}
 
 target_link_libraries(${exe_name}
     PRIVATE
+        GoldenSunBase
         GoldenSunEngine
         d3d12 dxgi dxguid
         gtest stb

@@ -44,6 +44,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Lib")
 
 add_subdirectory(External)
+add_subdirectory(Base)
 add_subdirectory(Engine)
 add_subdirectory(Samples)
 add_subdirectory(Test)

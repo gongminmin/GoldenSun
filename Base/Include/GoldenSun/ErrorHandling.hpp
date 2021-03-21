@@ -7,9 +7,9 @@
 
 namespace GoldenSun
 {
-    std::string GOLDEN_SUN_API CombineFileLine(std::string_view file, uint32_t line);
-    std::string GOLDEN_SUN_API CombineFileLine(HRESULT hr, std::string_view file, uint32_t line);
-    void GOLDEN_SUN_API Verify(bool value);
+    std::string CombineFileLine(std::string_view file, uint32_t line);
+    std::string CombineFileLine(HRESULT hr, std::string_view file, uint32_t line);
+    void Verify(bool value);
 
     class HrException : public std::runtime_error
     {

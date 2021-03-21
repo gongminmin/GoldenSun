@@ -1,9 +1,6 @@
+#include "pch.hpp"
+
 #include "GoldenSunTest.hpp"
-
-#include <GoldenSun/GoldenSun.hpp>
-#include <GoldenSun/Util.hpp>
-
-#include <gtest/gtest.h>
 
 using namespace DirectX;
 using namespace GoldenSun;

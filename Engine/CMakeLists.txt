@@ -2,22 +2,14 @@ set(lib_name "GoldenSunEngine")
 
 set(source_files
     Source/AccelerationStructure.cpp
-    Source/ErrorHandling.cpp
     Source/Engine.cpp
     Source/Mesh.cpp
-    Source/Util.cpp
 )
 
 set(header_files
-    Include/GoldenSun/Base.hpp
-    Include/GoldenSun/ComPtr.hpp
-    Include/GoldenSun/ErrorHandling.hpp
     Include/GoldenSun/Engine.hpp
     Include/GoldenSun/GoldenSun.hpp
     Include/GoldenSun/Mesh.hpp
-    Include/GoldenSun/SmartPtrHelper.hpp
-    Include/GoldenSun/Util.hpp
-    Include/GoldenSun/Uuid.hpp
 )
 
 set(internal_header_files
@@ -40,6 +32,8 @@ add_library(${lib_name} SHARED
 
 GoldenSunAddShaderFile(Source/RayTracing.hlsl "lib" "")
 
+GoldenSunAddPrecompiledHeader(${lib_name} "Source/pch.hpp")
+
 target_compile_definitions(${lib_name}
     PRIVATE
         -DGOLDEN_SUN_SOURCE
@@ -60,9 +54,10 @@ set_target_properties(${lib_name} PROPERTIES
     FOLDER "Engine"
 )
 
-GoldenSunAddPrecompiledHeader(${lib_name} "Source/pch.hpp")
-
 target_link_libraries(${lib_name}
     PUBLIC
         d3d12 dxguid
+
+    PRIVATE
+        GoldenSunBase
 )

@@ -1,8 +1,6 @@
-#define INITGUID
+#include "pch.hpp"
 
 #include "GoldenSunTest.hpp"
-
-#include <DirectXMath.h>
 
 #include <GoldenSun/ErrorHandling.hpp>
 #include <GoldenSun/Util.hpp>
@@ -10,8 +8,6 @@
 
 #include <filesystem>
 #include <iostream>
-
-#include <gtest/gtest.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>

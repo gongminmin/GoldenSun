@@ -1,6 +1,6 @@
-#include "GoldenSunTest.hpp"
+#include "pch.hpp"
 
-#include <gtest/gtest.h>
+#include "GoldenSunTest.hpp"
 
 using namespace GoldenSun;
 
