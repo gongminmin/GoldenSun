@@ -1109,7 +1109,7 @@ namespace GoldenSun
                             if (!default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)])
                             {
                                 default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
-                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0x00FF0000U);
+                                    CreateSolidColorTexture(device_.Get(), cmd_list, 0x00000000U);
                             }
 
                             metallic_glossiness_tex = default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)].Get();

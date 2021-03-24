@@ -330,7 +330,7 @@ TEST_F(RayCastingTest, Instancing)
 
     test_env.ExecuteCommandList();
 
-    test_env.CompareWithExpected("RayCastingTest/Instancing", golden_sun_engine_->Output(), 2.0f / 255);
+    test_env.CompareWithExpected("RayCastingTest/Instancing", golden_sun_engine_->Output());
 
     test_env.EndFrame();
 }
