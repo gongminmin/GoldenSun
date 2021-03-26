@@ -43,16 +43,12 @@ namespace GoldenSun
         return *this;
     }
 
-    void AccelerationStructure::AddBarrier(ID3D12GraphicsCommandList4* cmd_list) noexcept
+    void AccelerationStructure::AddBarrier(GpuCommandList& cmd_list) noexcept
     {
-        D3D12_RESOURCE_BARRIER barrier;
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.UAV.pResource = acceleration_structure_.Resource();
-        cmd_list->ResourceBarrier(1, &barrier);
+        acceleration_structure_.Transition(cmd_list, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
     }
 
-    void AccelerationStructure::CreateResource(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
+    void AccelerationStructure::CreateResource(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
         D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, std::wstring_view name)
     {
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build_desc{};
@@ -63,28 +59,28 @@ namespace GoldenSun
         inputs.NumDescs = num_descs;
         inputs.pGeometryDescs = descs;
 
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuild_info_);
+        prebuild_info_ = gpu_system.RayTracingAccelerationStructurePrebuildInfo(inputs);
         Verify(prebuild_info_.ResultDataMaxSizeInBytes > 0);
 
-        acceleration_structure_ = GpuDefaultBuffer(device, static_cast<uint32_t>(prebuild_info_.ResultDataMaxSizeInBytes),
+        acceleration_structure_ = gpu_system.CreateDefaultBuffer(static_cast<uint32_t>(prebuild_info_.ResultDataMaxSizeInBytes),
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, std::move(name));
     }
 
 
-    BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(ID3D12Device5* device,
+    BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh, bool allow_update, bool update_on_build,
         std::wstring_view name)
-        : AccelerationStructure(build_flags, allow_update, update_on_build), geometry_descs_(mesh.GeometryDescs())
+        : AccelerationStructure(build_flags, allow_update, update_on_build), gpu_system_(gpu_system), geometry_descs_(mesh.GeometryDescs())
     {
-        this->CreateResource(device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL, geometry_descs_.data(),
+        this->CreateResource(gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL, geometry_descs_.data(),
             static_cast<uint32_t>(geometry_descs_.size()), std::move(name));
     }
 
     BottomLevelAccelerationStructure::~BottomLevelAccelerationStructure() noexcept = default;
 
     BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(BottomLevelAccelerationStructure&& other) noexcept
-        : AccelerationStructure(std::move(other)), geometry_descs_(std::move(other.geometry_descs_)),
-          cache_geometry_descs_(std::move(other.cache_geometry_descs_)), frame_index_(std::move(other.frame_index_)),
+        : AccelerationStructure(std::move(other)), gpu_system_(other.gpu_system_), geometry_descs_(std::move(other.geometry_descs_)),
+          cache_geometry_descs_(std::move(other.cache_geometry_descs_)),
           instance_contribution_to_hit_group_index_(std::move(other.instance_contribution_to_hit_group_index_))
     {
     }
@@ -97,7 +93,6 @@ namespace GoldenSun
 
             geometry_descs_ = std::move(other.geometry_descs_);
             cache_geometry_descs_ = std::move(other.cache_geometry_descs_);
-            frame_index_ = std::move(other.frame_index_);
             instance_contribution_to_hit_group_index_ = std::move(other.instance_contribution_to_hit_group_index_);
         }
         return *this;
@@ -113,17 +108,18 @@ namespace GoldenSun
     }
 
     void BottomLevelAccelerationStructure::Build(
-        ID3D12GraphicsCommandList4* cmd_list, ID3D12Resource* scratch, D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr)
+        GpuCommandList& cmd_list, GpuBuffer const& scratch, D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr)
     {
-        Verify(prebuild_info_.ScratchDataSizeInBytes <= scratch->GetDesc().Width);
+        Verify(prebuild_info_.ScratchDataSizeInBytes <= scratch.Size());
 
         if (base_geometry_transform_gpu_addr > 0)
         {
             this->UpdateGeometryDescsTransform(base_geometry_transform_gpu_addr);
         }
 
-        frame_index_ = (frame_index_ + 1) % FrameCount;
-        cache_geometry_descs_[frame_index_] = geometry_descs_;
+        uint32_t const frame_index = gpu_system_.FrameIndex();
+
+        cache_geometry_descs_[frame_index] = geometry_descs_;
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottom_level_build_desc{};
         auto& bottom_level_inputs = bottom_level_build_desc.Inputs;
@@ -134,16 +130,16 @@ namespace GoldenSun
             if (is_built_ && allow_update_ && update_on_build_)
             {
                 bottom_level_inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
-                bottom_level_build_desc.SourceAccelerationStructureData = acceleration_structure_.Resource()->GetGPUVirtualAddress();
+                bottom_level_build_desc.SourceAccelerationStructureData = acceleration_structure_.GpuVirtualAddress();
             }
-            bottom_level_inputs.NumDescs = static_cast<uint32_t>(cache_geometry_descs_[frame_index_].size());
-            bottom_level_inputs.pGeometryDescs = cache_geometry_descs_[frame_index_].data();
+            bottom_level_inputs.NumDescs = static_cast<uint32_t>(cache_geometry_descs_[frame_index].size());
+            bottom_level_inputs.pGeometryDescs = cache_geometry_descs_[frame_index].data();
 
-            bottom_level_build_desc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-            bottom_level_build_desc.DestAccelerationStructureData = acceleration_structure_.Resource()->GetGPUVirtualAddress();
+            bottom_level_build_desc.ScratchAccelerationStructureData = scratch.GpuVirtualAddress();
+            bottom_level_build_desc.DestAccelerationStructureData = acceleration_structure_.GpuVirtualAddress();
         }
 
-        cmd_list->BuildRaytracingAccelerationStructure(&bottom_level_build_desc, 0, nullptr);
+        cmd_list.BuildRaytracingAccelerationStructure(bottom_level_build_desc);
         this->AddBarrier(cmd_list);
 
         dirty_ = false;
@@ -151,12 +147,12 @@ namespace GoldenSun
     }
 
 
-    TopLevelAccelerationStructure::TopLevelAccelerationStructure(ID3D12Device5* device, uint32_t num_bottom_level_as_instance_descs,
+    TopLevelAccelerationStructure::TopLevelAccelerationStructure(GpuSystem& gpu_system, uint32_t num_bottom_level_as_instance_descs,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build, std::wstring_view name)
         : AccelerationStructure(build_flags, allow_update, update_on_build)
     {
-        this->CreateResource(
-            device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL, nullptr, num_bottom_level_as_instance_descs, std::move(name));
+        this->CreateResource(gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL, nullptr,
+            num_bottom_level_as_instance_descs, std::move(name));
     }
 
     TopLevelAccelerationStructure::~TopLevelAccelerationStructure() noexcept = default;
@@ -164,8 +160,8 @@ namespace GoldenSun
     TopLevelAccelerationStructure::TopLevelAccelerationStructure(TopLevelAccelerationStructure&& other) noexcept = default;
     TopLevelAccelerationStructure& TopLevelAccelerationStructure::operator=(TopLevelAccelerationStructure&& other) noexcept = default;
 
-    void TopLevelAccelerationStructure::Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t num_bottom_level_as_instance_descs,
-        D3D12_GPU_VIRTUAL_ADDRESS bottom_level_as_instance_descs, ID3D12Resource* scratch, [[maybe_unused]] bool update)
+    void TopLevelAccelerationStructure::Build(GpuCommandList& cmd_list, uint32_t num_bottom_level_as_instance_descs,
+        D3D12_GPU_VIRTUAL_ADDRESS bottom_level_as_instance_descs, GpuBuffer const& scratch, [[maybe_unused]] bool update)
     {
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC top_level_build_desc{};
         auto& top_level_inputs = top_level_build_desc.Inputs;
@@ -179,12 +175,12 @@ namespace GoldenSun
             }
             top_level_inputs.NumDescs = num_bottom_level_as_instance_descs;
 
-            top_level_build_desc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-            top_level_build_desc.DestAccelerationStructureData = acceleration_structure_.Resource()->GetGPUVirtualAddress();
+            top_level_build_desc.ScratchAccelerationStructureData = scratch.GpuVirtualAddress();
+            top_level_build_desc.DestAccelerationStructureData = acceleration_structure_.GpuVirtualAddress();
         }
         top_level_inputs.InstanceDescs = bottom_level_as_instance_descs;
 
-        cmd_list->BuildRaytracingAccelerationStructure(&top_level_build_desc, 0, nullptr);
+        cmd_list.BuildRaytracingAccelerationStructure(top_level_build_desc);
         this->AddBarrier(cmd_list);
 
         dirty_ = false;
@@ -192,18 +188,19 @@ namespace GoldenSun
     }
 
     RaytracingAccelerationStructureManager::RaytracingAccelerationStructureManager(
-        ID3D12Device5* device, uint32_t max_num_bottom_level_instances)
-        : bottom_level_as_instance_descs_(device, max_num_bottom_level_instances, FrameCount, L"Bottom-Level AS Instance descs")
+        GpuSystem& gpu_system, uint32_t max_num_bottom_level_instances)
+        : bottom_level_as_instance_descs_(
+              gpu_system, max_num_bottom_level_instances, GpuSystem::FrameCount(), L"Bottom-Level AS Instance descs")
     {
     }
 
-    uint32_t RaytracingAccelerationStructureManager::AddBottomLevelAS(ID3D12Device5* device,
+    uint32_t RaytracingAccelerationStructureManager::AddBottomLevelAS(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh, bool allow_update,
         [[maybe_unused]] bool perform_update_on_build)
     {
         uint32_t const as_id = static_cast<uint32_t>(bottom_level_as_.size());
         auto const& bottom_level_as =
-            bottom_level_as_.emplace_back(BottomLevelAccelerationStructure(device, build_flags, mesh, allow_update));
+            bottom_level_as_.emplace_back(BottomLevelAccelerationStructure(gpu_system, build_flags, mesh, allow_update));
         scratch_buffer_size_ = std::max(scratch_buffer_size_, bottom_level_as.RequiredScratchSize());
         return as_id;
     }
@@ -223,7 +220,7 @@ namespace GoldenSun
         instance_desc.InstanceContributionToHitGroupIndex = instance_contribution_to_hit_group_index != 0xFFFFFFFFU
                                                                 ? instance_contribution_to_hit_group_index
                                                                 : bottom_level_as.InstanceContributionToHitGroupIndex();
-        instance_desc.AccelerationStructure = bottom_level_as.Resource()->GetGPUVirtualAddress();
+        instance_desc.AccelerationStructure = bottom_level_as.Buffer().GpuVirtualAddress();
         XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(instance_desc.Transform), transform);
 
         return instance_index;
@@ -241,19 +238,19 @@ namespace GoldenSun
         return max_instance_contribution_to_hit_group_index;
     };
 
-    void RaytracingAccelerationStructureManager::ResetTopLevelAS(ID3D12Device5* device,
+    void RaytracingAccelerationStructureManager::ResetTopLevelAS(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool perform_update_on_build,
         std::wstring_view resource_name)
     {
         top_level_as_ = std::make_unique<TopLevelAccelerationStructure>(
-            device, this->NumBottomLevelASInstances(), build_flags, allow_update, perform_update_on_build, std::move(resource_name));
+            gpu_system, this->NumBottomLevelASInstances(), build_flags, allow_update, perform_update_on_build, std::move(resource_name));
 
         scratch_buffer_size_ = std::max(scratch_buffer_size_, top_level_as_->RequiredScratchSize());
-        scratch_buffer_ = GpuDefaultBuffer(device, scratch_buffer_size_, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchBuffer");
+        scratch_buffer_ = gpu_system.CreateDefaultBuffer(
+            scratch_buffer_size_, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchBuffer");
     }
 
-    void RaytracingAccelerationStructureManager::Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t frame_index, bool force_build)
+    void RaytracingAccelerationStructureManager::Build(GpuCommandList& cmd_list, uint32_t frame_index, bool force_build)
     {
         bottom_level_as_instance_descs_.UploadToGpu(frame_index);
 
@@ -263,14 +260,14 @@ namespace GoldenSun
                 if (force_build || bottom_level_as.Dirty())
                 {
                     D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr{};
-                    bottom_level_as.Build(cmd_list, scratch_buffer_.Resource(), base_geometry_transform_gpu_addr);
+                    bottom_level_as.Build(cmd_list, scratch_buffer_, base_geometry_transform_gpu_addr);
                 }
             }
         }
 
         {
             D3D12_GPU_VIRTUAL_ADDRESS instance_descs = bottom_level_as_instance_descs_.GpuVirtualAddress(frame_index);
-            top_level_as_->Build(cmd_list, this->NumBottomLevelASInstances(), instance_descs, scratch_buffer_.Resource());
+            top_level_as_->Build(cmd_list, this->NumBottomLevelASInstances(), instance_descs, scratch_buffer_);
         }
     }
 } // namespace GoldenSun

@@ -11,6 +11,8 @@
     ClassName(ClassName&& other) = delete;       \
     ClassName& operator=(ClassName&& other) = delete;
 
+#define GOLDEN_SUN_UNREACHABLE(msg) __assume(false)
+
 namespace GoldenSun
 {
     template <uint32_t Alignment>

@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <GoldenSun/GoldenSun.hpp>
+#include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
 
@@ -41,8 +42,6 @@ namespace GoldenSun
         void CreateWindowSizeDependentResources();
         void HandleDeviceLost();
 
-        void ExecuteCommandList();
-        void WaitForGpu() noexcept;
         void FrameStats();
 
     private:
@@ -54,21 +53,11 @@ namespace GoldenSun
         bool active_ = false;
         bool window_visible_ = true;
 
-        ComPtr<IDXGIFactory4> dxgi_factory_;
-        ComPtr<ID3D12Device5> device_;
-        ComPtr<ID3D12CommandQueue> cmd_queue_;
-        ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
-        ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];
-        ComPtr<IDXGISwapChain3> swap_chain_;
-        ComPtr<ID3D12Resource> render_targets_[FrameCount];
+        GpuSystem gpu_system_;
+        GpuSwapChain swap_chain_;
+        GpuTexture2D render_targets_[GpuSystem::FrameCount()];
 
-        ComPtr<ID3D12Fence> fence_;
-        uint64_t fence_vals_[FrameCount]{};
-        Win32UniqueHandle fence_event_;
-
-        uint32_t frame_index_ = 0;
-
-        ComPtr<ID3D12DescriptorHeap> rtv_descriptor_heap_;
+        GpuDescriptorBlock rtv_desc_block_;
         uint32_t rtv_descriptor_size_;
 
         DXGI_FORMAT back_buffer_fmt_ = DXGI_FORMAT_R8G8B8A8_UNORM;

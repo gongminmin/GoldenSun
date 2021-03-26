@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GoldenSun/ComPtr.hpp>
+#include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
 
@@ -26,36 +27,14 @@ namespace GoldenSun
             return expected_dir_;
         }
 
-        ID3D12Device5* Device() const noexcept
+        GpuSystem& GpuSystem() noexcept
         {
-            return device_.Get();
-        }
-        ID3D12CommandQueue* CommandQueue() const noexcept
-        {
-            return cmd_queue_.Get();
-        }
-        ID3D12CommandAllocator* CommandAllocator() const noexcept
-        {
-            return cmd_allocators_[frame_index_].Get();
-        }
-        ID3D12GraphicsCommandList4* CommandList() const noexcept
-        {
-            return cmd_list_.Get();
+            return gpu_system_;
         }
 
-        void BeginFrame();
-        void EndFrame();
-
-        void ExecuteCommandList();
-        void WaitForGpu();
-
-        ComPtr<ID3D12Resource> LoadTexture(std::string const& file_name);
-        void SaveTexture(ID3D12Resource* texture, std::string const& file_name);
-        ComPtr<ID3D12Resource> CloneTexture(ID3D12Resource* texture);
-        void CopyTexture(ID3D12Resource* src_texture, ID3D12Resource* dst_texture);
-
-        void UploadTexture(ID3D12Resource* texture, uint8_t const* data);
-        std::vector<uint8_t> ReadBackTexture(ID3D12Resource* texture);
+        GpuTexture2D LoadTexture(std::string const& file_name);
+        void SaveTexture(GpuTexture2D const& texture, std::string const& file_name);
+        GpuTexture2D CloneTexture(GpuTexture2D& texture);
 
         struct CompareResult
         {
@@ -63,27 +42,17 @@ namespace GoldenSun
             bool format_unmatch;
             float channel_errors[4];
 
-            ComPtr<ID3D12Resource> error_image;
+            GpuTexture2D error_image;
         };
-        CompareResult CompareImages(ID3D12Resource* expected_image, ID3D12Resource* actual_image, float channel_tolerance = 1 / 255.0f);
+        CompareResult CompareImages(GpuTexture2D& expected_image, GpuTexture2D& actual_image, float channel_tolerance = 1 / 255.0f);
 
-        void CompareWithExpected(std::string const& expected_name, ID3D12Resource* actual_image, float channel_tolerance = 1 / 255.0f);
+        void CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance = 1 / 255.0f);
 
     private:
         std::string expected_dir_;
         std::string result_dir_;
 
-        ComPtr<IDXGIFactory4> dxgi_factory_;
-        ComPtr<ID3D12Device5> device_;
-        ComPtr<ID3D12CommandQueue> cmd_queue_;
-        ComPtr<ID3D12GraphicsCommandList4> cmd_list_;
-        ComPtr<ID3D12CommandAllocator> cmd_allocators_[FrameCount];
-
-        ComPtr<ID3D12Fence> fence_;
-        uint64_t fence_vals_[FrameCount]{};
-        Win32UniqueHandle fence_event_;
-
-        uint32_t frame_index_ = 0;
+        GoldenSun::GpuSystem gpu_system_;
     };
 
     TestEnvironment& TestEnv();

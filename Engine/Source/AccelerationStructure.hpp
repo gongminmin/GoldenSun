@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GoldenSun/ComPtr.hpp>
+#include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/Util.hpp>
 
 #include <DirectXMath.h>
@@ -25,7 +26,7 @@ namespace GoldenSun
         AccelerationStructure(AccelerationStructure&& other) noexcept;
         AccelerationStructure& operator=(AccelerationStructure&& other) noexcept;
 
-        void AddBarrier(ID3D12GraphicsCommandList4* cmd_list) noexcept;
+        void AddBarrier(GpuCommandList& cmd_list) noexcept;
 
         uint32_t RequiredScratchSize() const noexcept
         {
@@ -36,13 +37,9 @@ namespace GoldenSun
             return static_cast<uint32_t>(prebuild_info_.ResultDataMaxSizeInBytes);
         }
 
-        ID3D12Resource* Resource() const noexcept
+        GpuDefaultBuffer const& Buffer() const noexcept
         {
-            return acceleration_structure_.Resource();
-        }
-        uint64_t ResourceSize() const noexcept
-        {
-            return this->Resource()->GetDesc().Width;
+            return acceleration_structure_;
         }
 
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO const& PrebuildInfo() const noexcept
@@ -63,7 +60,7 @@ namespace GoldenSun
         AccelerationStructure(
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept;
 
-        void CreateResource(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
+        void CreateResource(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
             D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, std::wstring_view name);
 
     protected:
@@ -81,15 +78,14 @@ namespace GoldenSun
     class BottomLevelAccelerationStructure : public AccelerationStructure
     {
     public:
-        BottomLevelAccelerationStructure(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
+        BottomLevelAccelerationStructure(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
             Mesh const& mesh, bool allow_update = false, bool update_on_build = false, std::wstring_view name = L"");
         ~BottomLevelAccelerationStructure() noexcept override;
 
         BottomLevelAccelerationStructure(BottomLevelAccelerationStructure&& other) noexcept;
         BottomLevelAccelerationStructure& operator=(BottomLevelAccelerationStructure&& other) noexcept;
 
-        void Build(
-            ID3D12GraphicsCommandList4* cmd_list, ID3D12Resource* scratch, D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr = 0);
+        void Build(GpuCommandList& cmd_list, GpuBuffer const& scratch, D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr = 0);
 
         void UpdateGeometryDescsTransform(D3D12_GPU_VIRTUAL_ADDRESS base_geometry_transform_gpu_addr) noexcept;
 
@@ -108,9 +104,10 @@ namespace GoldenSun
         }
 
     private:
+        GpuSystem& gpu_system_;
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geometry_descs_;
-        std::array<std::vector<D3D12_RAYTRACING_GEOMETRY_DESC>, FrameCount> cache_geometry_descs_;
-        uint32_t frame_index_ = 0;
+        std::array<std::vector<D3D12_RAYTRACING_GEOMETRY_DESC>, GpuSystem::FrameCount()> cache_geometry_descs_;
 
         uint32_t instance_contribution_to_hit_group_index_ = 0;
     };
@@ -118,7 +115,7 @@ namespace GoldenSun
     class TopLevelAccelerationStructure : public AccelerationStructure
     {
     public:
-        TopLevelAccelerationStructure(ID3D12Device5* device, uint32_t num_bottom_level_as_instance_descs,
+        TopLevelAccelerationStructure(GpuSystem& gpu_system, uint32_t num_bottom_level_as_instance_descs,
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update = false, bool update_on_build = false,
             std::wstring_view name = L"");
         ~TopLevelAccelerationStructure() noexcept override;
@@ -126,24 +123,24 @@ namespace GoldenSun
         TopLevelAccelerationStructure(TopLevelAccelerationStructure&& other) noexcept;
         TopLevelAccelerationStructure& operator=(TopLevelAccelerationStructure&& other) noexcept;
 
-        void Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t num_instance_descs, D3D12_GPU_VIRTUAL_ADDRESS instance_descs,
-            ID3D12Resource* scratch, bool update = false);
+        void Build(GpuCommandList& cmd_list, uint32_t num_instance_descs, D3D12_GPU_VIRTUAL_ADDRESS instance_descs,
+            GpuBuffer const& scratch, bool update = false);
     };
 
     class RaytracingAccelerationStructureManager
     {
     public:
-        RaytracingAccelerationStructureManager(ID3D12Device5* device, uint32_t max_num_bottom_level_instances);
+        RaytracingAccelerationStructureManager(GpuSystem& gpu_system, uint32_t max_num_bottom_level_instances);
 
-        uint32_t AddBottomLevelAS(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
+        uint32_t AddBottomLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
             bool allow_update = false, bool perform_update_on_build = false);
         uint32_t AddBottomLevelASInstance(uint32_t index, uint32_t instance_contribution_to_hit_group_index = 0xFFFFFFFFU,
             DirectX::XMMATRIX transform = DirectX::XMMatrixIdentity(), uint8_t instance_mask = 1);
 
-        void ResetTopLevelAS(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
+        void ResetTopLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
             bool allow_update = false, bool perform_update_on_build = false, std::wstring_view resource_name = L"");
 
-        void Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t frame_index, bool force_build = false);
+        void Build(GpuCommandList& cmd_list, uint32_t frame_index, bool force_build = false);
 
         uint32_t NumBottomLevelsASs() const noexcept
         {
@@ -159,9 +156,9 @@ namespace GoldenSun
             return bottom_level_as_[index];
         }
 
-        ID3D12Resource* TopLevelASResource() const noexcept
+        GpuDefaultBuffer const& TopLevelASBuffer() const noexcept
         {
-            return top_level_as_->Resource();
+            return top_level_as_->Buffer();
         }
 
         uint32_t NumBottomLevelASInstances() const noexcept

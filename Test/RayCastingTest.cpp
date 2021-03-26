@@ -10,8 +10,12 @@ class RayCastingTest : public testing::Test
 public:
     void SetUp() override
     {
-        auto& test_env = TestEnv();
-        golden_sun_engine_ = std::make_unique<Engine>(test_env.Device(), test_env.CommandQueue());
+        auto& gpu_system = TestEnv().GpuSystem();
+
+        auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice());
+        auto* d3d12_cmd_queue = reinterpret_cast<ID3D12CommandQueue*>(gpu_system.NativeCommandQueue());
+
+        golden_sun_engine_ = std::make_unique<Engine>(d3d12_device, d3d12_cmd_queue);
     }
 
 protected:
@@ -21,7 +25,7 @@ protected:
 TEST_F(RayCastingTest, SingleObject)
 {
     auto& test_env = TestEnv();
-    auto* device = test_env.Device();
+    auto& gpu_system = test_env.GpuSystem();
 
     golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
@@ -62,22 +66,10 @@ TEST_F(RayCastingTest, SingleObject)
     PbrMaterial mtl;
     mtl.buffer.albedo = {1.0f, 1.0f, 1.0f};
 
-    D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-        D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
-        ComPtr<ID3D12Resource> ret;
-
-        GpuUploadBuffer buffer(device, data_size, std::move(name));
-        ret = buffer.Resource();
-
-        memcpy(buffer.MappedData<void>(), data, data_size);
-
-        return ret;
-    };
-
-    auto vb = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer");
-    auto ib = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
+    ComPtr<ID3D12Resource> vb = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer").NativeResource());
+    ComPtr<ID3D12Resource> ib = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer").NativeResource());
 
     std::vector<Mesh> meshes;
     {
@@ -91,26 +83,23 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddInstance(world);
     }
 
-    test_env.BeginFrame();
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
-    auto* cmd_list = test_env.CommandList();
-    TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+    auto cmd_list = gpu_system.CreateCommandList();
+    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+    golden_sun_engine_->Render(d3d12_cmd_list);
+    gpu_system.Execute(std::move(cmd_list));
 
-    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
+    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    test_env.CompareWithExpected("RayCastingTest/SingleObject", actual_image);
 
-    golden_sun_engine_->Render(cmd_list);
-
-    test_env.ExecuteCommandList();
-
-    test_env.CompareWithExpected("RayCastingTest/SingleObject", golden_sun_engine_->Output());
-
-    test_env.EndFrame();
+    gpu_system.MoveToNextFrame();
 }
 
 TEST_F(RayCastingTest, MultipleObjects)
 {
     auto& test_env = TestEnv();
-    auto* device = test_env.Device();
+    auto& gpu_system = test_env.GpuSystem();
 
     golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
@@ -162,24 +151,14 @@ TEST_F(RayCastingTest, MultipleObjects)
     mtls[0].buffer.albedo = {1.0f, 1.0f, 1.0f};
     mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
 
-    D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-        D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
-        ComPtr<ID3D12Resource> ret;
-
-        GpuUploadBuffer buffer(device, data_size, std::move(name));
-        ret = buffer.Resource();
-
-        memcpy(buffer.MappedData<void>(), data, data_size);
-
-        return ret;
-    };
-
-    auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
-    auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
-    auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
-    auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
+    ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
+    ComPtr<ID3D12Resource> ib0 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer").NativeResource());
+    ComPtr<ID3D12Resource> vb1 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer").NativeResource());
+    ComPtr<ID3D12Resource> ib1 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer").NativeResource());
 
     std::vector<Mesh> meshes;
     {
@@ -202,26 +181,23 @@ TEST_F(RayCastingTest, MultipleObjects)
         mesh1.AddInstance(world1);
     }
 
-    test_env.BeginFrame();
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
-    auto* cmd_list = test_env.CommandList();
-    TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+    auto cmd_list = gpu_system.CreateCommandList();
+    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+    golden_sun_engine_->Render(d3d12_cmd_list);
+    gpu_system.Execute(std::move(cmd_list));
 
-    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
+    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    test_env.CompareWithExpected("RayCastingTest/MultipleObjects", actual_image);
 
-    golden_sun_engine_->Render(cmd_list);
-
-    test_env.ExecuteCommandList();
-
-    test_env.CompareWithExpected("RayCastingTest/MultipleObjects", golden_sun_engine_->Output());
-
-    test_env.EndFrame();
+    gpu_system.MoveToNextFrame();
 }
 
 TEST_F(RayCastingTest, Instancing)
 {
     auto& test_env = TestEnv();
-    auto* device = test_env.Device();
+    auto& gpu_system = test_env.GpuSystem();
 
     golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
@@ -274,24 +250,14 @@ TEST_F(RayCastingTest, Instancing)
     mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
     mtls[2].buffer.albedo = {0.8f, 0.4f, 0.6f};
 
-    D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-        D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
-        ComPtr<ID3D12Resource> ret;
-
-        GpuUploadBuffer buffer(device, data_size, std::move(name));
-        ret = buffer.Resource();
-
-        memcpy(buffer.MappedData<void>(), data, data_size);
-
-        return ret;
-    };
-
-    auto vb0 = CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
-    auto ib0 = CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
-    auto vb1 = CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
-    auto ib1 = CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
+    ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
+    ComPtr<ID3D12Resource> ib0 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer").NativeResource());
+    ComPtr<ID3D12Resource> vb1 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer").NativeResource());
+    ComPtr<ID3D12Resource> ib1 = reinterpret_cast<ID3D12Resource*>(
+        gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer").NativeResource());
 
     std::vector<Mesh> meshes;
     {
@@ -319,18 +285,15 @@ TEST_F(RayCastingTest, Instancing)
         mesh1.AddInstance(world1);
     }
 
-    test_env.BeginFrame();
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
-    auto* cmd_list = test_env.CommandList();
-    TIFHR(cmd_list->Reset(test_env.CommandAllocator(), nullptr));
+    auto cmd_list = gpu_system.CreateCommandList();
+    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+    golden_sun_engine_->Render(d3d12_cmd_list);
+    gpu_system.Execute(std::move(cmd_list));
 
-    golden_sun_engine_->Geometries(cmd_list, meshes.data(), static_cast<uint32_t>(meshes.size()));
+    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    test_env.CompareWithExpected("RayCastingTest/Instancing", actual_image);
 
-    golden_sun_engine_->Render(cmd_list);
-
-    test_env.ExecuteCommandList();
-
-    test_env.CompareWithExpected("RayCastingTest/Instancing", golden_sun_engine_->Output());
-
-    test_env.EndFrame();
+    gpu_system.MoveToNextFrame();
 }

@@ -3,6 +3,7 @@
 #include "MeshLoader.hpp"
 #include "TextureLoader.hpp"
 
+#include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/Util.hpp>
 
 #include <filesystem>
@@ -169,8 +170,7 @@ namespace
         }
     }
 
-    std::vector<PbrMaterial> BuildMaterials(
-        ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, aiScene const* ai_scene, std::filesystem::path const& asset_path)
+    std::vector<PbrMaterial> BuildMaterials(GpuSystem& gpu_system, aiScene const* ai_scene, std::filesystem::path const& asset_path)
     {
         std::vector<PbrMaterial> materials;
 
@@ -255,8 +255,8 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
@@ -264,31 +264,31 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
             }
             else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &material.buffer.normal_scale);
             }
@@ -297,8 +297,8 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
-                    LoadTexture(device, cmd_list, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] = reinterpret_cast<ID3D12Resource*>(
+                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &material.buffer.occlusion_strength);
             }
@@ -307,7 +307,7 @@ namespace
         return materials;
     }
 
-    std::vector<Mesh> BuildMeshData(ID3D12Device5* device, aiScene const* ai_scene, std::vector<PbrMaterial> const& materials)
+    std::vector<Mesh> BuildMeshData(GpuSystem& gpu_system, aiScene const* ai_scene, std::vector<PbrMaterial> const& materials)
     {
         std::vector<Mesh> meshes;
         for (uint32_t mi = 0; mi < ai_scene->mNumMeshes; ++mi)
@@ -400,26 +400,13 @@ namespace
                 XMStoreFloat4(&vertices[vi].tangent_quat, tangent_quat);
             }
 
-            D3D12_HEAP_PROPERTIES const upload_heap_prop = {
-                D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
-
-            auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
-                ComPtr<ID3D12Resource> ret;
-
-                GpuUploadBuffer buffer(device, data_size, std::move(name));
-                ret = buffer.Resource();
-
-                memcpy(buffer.MappedData<void>(), data, data_size);
-
-                return ret;
-            };
-
-            auto vb = CreateUploadBuffer(vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(vertices[0])),
+            auto vb = gpu_system.CreateUploadBuffer(vertices.data(), static_cast<uint32_t>(vertices.size() * sizeof(vertices[0])),
                 (mesh_name_wide + L" Vertex Buffer").c_str());
-            auto ib = CreateUploadBuffer(
+            auto ib = gpu_system.CreateUploadBuffer(
                 indices.data(), static_cast<uint32_t>(indices.size() * sizeof(indices[0])), (mesh_name_wide + L" Index Buffer").c_str());
 
-            new_mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
+            new_mesh.AddPrimitive(
+                reinterpret_cast<ID3D12Resource*>(vb.NativeResource()), reinterpret_cast<ID3D12Resource*>(ib.NativeResource()), 0);
         }
 
         return meshes;
@@ -428,7 +415,7 @@ namespace
 
 namespace GoldenSun
 {
-    std::vector<Mesh> LoadMesh(ID3D12Device5* device, ID3D12GraphicsCommandList4* cmd_list, std::string_view file_name)
+    std::vector<Mesh> LoadMesh(GpuSystem& gpu_system, std::string_view file_name)
     {
         uint32_t const ppsteps = aiProcess_JoinIdenticalVertices      // join identical vertices/ optimize indexing
                                  | aiProcess_ValidateDataStructure    // perform a full validation of the loader's output
@@ -453,8 +440,8 @@ namespace GoldenSun
         {
             std::filesystem::path file_path = file_name;
 
-            std::vector<PbrMaterial> materials = BuildMaterials(device, cmd_list, ai_scene, file_path.parent_path());
-            meshes = BuildMeshData(device, ai_scene, materials);
+            std::vector<PbrMaterial> materials = BuildMaterials(gpu_system, ai_scene, file_path.parent_path());
+            meshes = BuildMeshData(gpu_system, ai_scene, materials);
             BuildNodeData(ai_scene->mRootNode, XMMatrixIdentity(), meshes);
         }
         else
