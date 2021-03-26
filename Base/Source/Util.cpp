@@ -96,8 +96,8 @@ namespace GoldenSun
     }
 
 
-    GpuBuffer::GpuBuffer(ID3D12Device5* device, uint64_t buffer_size, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_FLAGS flags,
-        D3D12_RESOURCE_STATES init_state, wchar_t const* name)
+    GpuBuffer::GpuBuffer(ID3D12Device5* device, uint32_t buffer_size, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_FLAGS flags,
+        D3D12_RESOURCE_STATES init_state, std::wstring_view name)
     {
         D3D12_HEAP_PROPERTIES const upload_heap_prop = {heap_type, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
@@ -105,9 +105,9 @@ namespace GoldenSun
             D3D12_RESOURCE_DIMENSION_BUFFER, 0, buffer_size, 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1, 0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, flags};
         TIFHR(device->CreateCommittedResource(
             &upload_heap_prop, D3D12_HEAP_FLAG_NONE, &buffer_desc, init_state, nullptr, UuidOf<ID3D12Resource>(), resource_.PutVoid()));
-        if (name != nullptr)
+        if (!name.empty())
         {
-            resource_->SetName(name);
+            resource_->SetName(std::wstring(name).c_str());
         }
     }
 
@@ -133,9 +133,9 @@ namespace GoldenSun
         return resource_.Get();
     }
 
-    uint64_t GpuBuffer::Size() const noexcept
+    uint32_t GpuBuffer::Size() const noexcept
     {
-        return resource_ ? resource_->GetDesc().Width : 0;
+        return resource_ ? static_cast<uint32_t>(resource_->GetDesc().Width) : 0;
     }
 
 
@@ -144,8 +144,8 @@ namespace GoldenSun
     GpuDefaultBuffer& GpuDefaultBuffer::operator=(GpuDefaultBuffer&& other) noexcept = default;
 
     GpuDefaultBuffer::GpuDefaultBuffer(
-        ID3D12Device5* device, uint64_t buffer_size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES init_state, wchar_t const* name)
-        : GpuBuffer(device, buffer_size, D3D12_HEAP_TYPE_DEFAULT, flags, init_state, name)
+        ID3D12Device5* device, uint32_t buffer_size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES init_state, std::wstring_view name)
+        : GpuBuffer(device, buffer_size, D3D12_HEAP_TYPE_DEFAULT, flags, init_state, std::move(name))
     {
     }
 
@@ -167,8 +167,9 @@ namespace GoldenSun
         return *this;
     }
 
-    GpuUploadBuffer::GpuUploadBuffer(ID3D12Device5* device, uint64_t buffer_size, wchar_t const* name)
-        : GpuBuffer(device, buffer_size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, name)
+    GpuUploadBuffer::GpuUploadBuffer(ID3D12Device5* device, uint32_t buffer_size, std::wstring_view name)
+        : GpuBuffer(
+              device, buffer_size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, std::move(name))
     {
         D3D12_RANGE const read_range{0, 0};
         TIFHR(resource_->Map(0, &read_range, &mapped_data_));
@@ -200,8 +201,9 @@ namespace GoldenSun
         return *this;
     }
 
-    GpuReadbackBuffer::GpuReadbackBuffer(ID3D12Device5* device, uint64_t buffer_size, wchar_t const* name)
-        : GpuBuffer(device, buffer_size, D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST, name)
+    GpuReadbackBuffer::GpuReadbackBuffer(ID3D12Device5* device, uint32_t buffer_size, std::wstring_view name)
+        : GpuBuffer(
+              device, buffer_size, D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST, std::move(name))
     {
         TIFHR(resource_->Map(0, nullptr, &mapped_data_));
     }

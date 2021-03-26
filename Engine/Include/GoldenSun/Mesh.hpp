@@ -48,7 +48,6 @@ namespace GoldenSun
             MetallicGlossiness,
             Emissive,
             Normal,
-            Height,
             Occlusion,
 
             Num
@@ -61,7 +60,7 @@ namespace GoldenSun
 
     class GOLDEN_SUN_API Mesh
     {
-        DISALLOW_COPY_AND_ASSIGN(Mesh);
+        DISALLOW_COPY_AND_ASSIGN(Mesh)
 
     public:
         Mesh(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes);
@@ -100,7 +99,7 @@ namespace GoldenSun
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const;
 
     private:
-        class MeshImpl;
-        MeshImpl* impl_;
+        class Impl;
+        Impl* impl_;
     };
 } // namespace GoldenSun

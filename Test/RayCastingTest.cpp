@@ -65,10 +65,10 @@ TEST_F(RayCastingTest, SingleObject)
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, wchar_t const* name) {
+    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
         ComPtr<ID3D12Resource> ret;
 
-        GpuUploadBuffer buffer(device, data_size, name);
+        GpuUploadBuffer buffer(device, data_size, std::move(name));
         ret = buffer.Resource();
 
         memcpy(buffer.MappedData<void>(), data, data_size);
@@ -165,10 +165,10 @@ TEST_F(RayCastingTest, MultipleObjects)
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, wchar_t const* name) {
+    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
         ComPtr<ID3D12Resource> ret;
 
-        GpuUploadBuffer buffer(device, data_size, name);
+        GpuUploadBuffer buffer(device, data_size, std::move(name));
         ret = buffer.Resource();
 
         memcpy(buffer.MappedData<void>(), data, data_size);
@@ -277,10 +277,10 @@ TEST_F(RayCastingTest, Instancing)
     D3D12_HEAP_PROPERTIES const upload_heap_prop = {
         D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1};
 
-    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, wchar_t const* name) {
+    auto CreateUploadBuffer = [device, &upload_heap_prop](void const* data, uint32_t data_size, std::wstring_view name) {
         ComPtr<ID3D12Resource> ret;
 
-        GpuUploadBuffer buffer(device, data_size, name);
+        GpuUploadBuffer buffer(device, data_size, std::move(name));
         ret = buffer.Resource();
 
         memcpy(buffer.MappedData<void>(), data, data_size);

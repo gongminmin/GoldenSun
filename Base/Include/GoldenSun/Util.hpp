@@ -30,12 +30,12 @@ namespace GoldenSun
 
     public:
         ID3D12Resource* Resource() const noexcept;
-        uint64_t Size() const noexcept;
+        uint32_t Size() const noexcept;
 
     protected:
         GpuBuffer() noexcept;
-        GpuBuffer(ID3D12Device5* device, uint64_t buffer_size, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_FLAGS flags,
-            D3D12_RESOURCE_STATES init_state, wchar_t const* name);
+        GpuBuffer(ID3D12Device5* device, uint32_t buffer_size, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_FLAGS flags,
+            D3D12_RESOURCE_STATES init_state, std::wstring_view name = L"");
         ~GpuBuffer() noexcept;
 
         GpuBuffer(GpuBuffer&& other) noexcept;
@@ -49,8 +49,8 @@ namespace GoldenSun
     {
     public:
         GpuDefaultBuffer() noexcept;
-        GpuDefaultBuffer(
-            ID3D12Device5* device, uint64_t buffer_size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES init_state, wchar_t const* name);
+        GpuDefaultBuffer(ID3D12Device5* device, uint32_t buffer_size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES init_state,
+            std::wstring_view name = L"");
 
         GpuDefaultBuffer(GpuDefaultBuffer&& other) noexcept;
         GpuDefaultBuffer& operator=(GpuDefaultBuffer&& other) noexcept;
@@ -60,7 +60,7 @@ namespace GoldenSun
     {
     public:
         GpuUploadBuffer() noexcept;
-        GpuUploadBuffer(ID3D12Device5* device, uint64_t buffer_size, wchar_t const* name);
+        GpuUploadBuffer(ID3D12Device5* device, uint32_t buffer_size, std::wstring_view name = L"");
         ~GpuUploadBuffer() noexcept;
 
         GpuUploadBuffer(GpuUploadBuffer&& other) noexcept;
@@ -80,7 +80,7 @@ namespace GoldenSun
     {
     public:
         GpuReadbackBuffer() noexcept;
-        GpuReadbackBuffer(ID3D12Device5* device, uint64_t buffer_size, wchar_t const* name);
+        GpuReadbackBuffer(ID3D12Device5* device, uint32_t buffer_size, std::wstring_view name = L"");
         ~GpuReadbackBuffer() noexcept;
 
         GpuReadbackBuffer(GpuReadbackBuffer&& other) noexcept;
@@ -105,7 +105,7 @@ namespace GoldenSun
         using value_type = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
 
     public:
-        ConstantBuffer(ID3D12Device5* device, uint32_t num_frames = 1, wchar_t const* name = nullptr)
+        ConstantBuffer(ID3D12Device5* device, uint32_t num_frames = 1, std::wstring_view name = L"")
             : GpuUploadBuffer(device, num_frames * Align<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(sizeof(value_type)), name),
               aligned_size_(Align<D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT>(sizeof(value_type))), num_frames_(num_frames)
         {
@@ -182,7 +182,7 @@ namespace GoldenSun
         // Ref: https://developer.nvidia.com/content/understanding-structured-buffer-performance
         static_assert(sizeof(value_type) % 16 == 0, "Align structure buffers on 16-byte boundary for performance reasons.");
 
-        StructuredBuffer(ID3D12Device5* device, uint32_t num_elements, uint32_t num_frames = 1, wchar_t const* name = nullptr)
+        StructuredBuffer(ID3D12Device5* device, uint32_t num_elements, uint32_t num_frames = 1, std::wstring_view name = L"")
             : GpuUploadBuffer(device, num_frames * num_elements * sizeof(value_type), name), num_frames_(num_frames), staging_(num_elements)
         {
         }

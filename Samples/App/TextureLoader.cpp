@@ -2,6 +2,8 @@
 
 #include "TextureLoader.hpp"
 
+#include <GoldenSun/Util.hpp>
+
 #include <iostream>
 
 #include <d3d12.h>
@@ -10,8 +12,6 @@
 #include <stb_image.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
-
-#include <GoldenSun/Util.hpp>
 
 using namespace GoldenSun;
 using namespace std;
@@ -30,7 +30,7 @@ namespace
         uint64_t required_size = 0;
         device->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        GpuUploadBuffer upload_buffer(device, required_size, L"UploadBuffer");
+        GpuUploadBuffer upload_buffer(device, static_cast<uint32_t>(required_size), L"UploadBuffer");
 
         assert(row_size_in_bytes >= width * 4);
 

@@ -80,17 +80,17 @@ namespace GoldenSun
         {
             if (active_)
             {
-                got_msg = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) != 0;
+                got_msg = ::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE) != 0;
             }
             else
             {
-                got_msg = GetMessage(&msg, nullptr, 0, 0) != 0;
+                got_msg = ::GetMessage(&msg, nullptr, 0, 0) != 0;
             }
 
             if (got_msg)
             {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                ::TranslateMessage(&msg);
+                ::DispatchMessage(&msg);
             }
             else
             {

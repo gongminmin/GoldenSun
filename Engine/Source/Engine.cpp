@@ -91,15 +91,11 @@ namespace
         {
         }
 
-        ShaderTable(ID3D12Device5* device, uint32_t max_num_shader_records, uint32_t shader_record_size, wchar_t const* resource_name)
+        ShaderTable(ID3D12Device5* device, uint32_t max_num_shader_records, uint32_t shader_record_size, std::wstring_view resource_name)
             : shader_record_size_(Align<D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT>(shader_record_size)),
-              buffer_(device, max_num_shader_records * shader_record_size_, resource_name)
+              buffer_(device, max_num_shader_records * shader_record_size_, std::move(resource_name))
         {
             mapped_shader_records_ = buffer_.MappedData<uint8_t>();
-        }
-
-        ~ShaderTable() noexcept
-        {
         }
 
         ID3D12Resource* Resource() const noexcept
@@ -544,7 +540,7 @@ namespace
         uint64_t required_size = 0;
         device->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        GpuUploadBuffer upload_buffer(device, required_size, L"UploadBuffer");
+        GpuUploadBuffer upload_buffer(device, static_cast<uint32_t>(required_size), L"UploadBuffer");
 
         assert(row_size_in_bytes >= width * 4);
 
@@ -675,13 +671,13 @@ namespace
 
 namespace GoldenSun
 {
-    class Engine::EngineImpl
+    class Engine::Impl
     {
-        DISALLOW_COPY_AND_ASSIGN(EngineImpl);
-        DISALLOW_COPY_MOVE_AND_ASSIGN(EngineImpl);
+        DISALLOW_COPY_AND_ASSIGN(Impl)
+        DISALLOW_COPY_MOVE_AND_ASSIGN(Impl)
 
     public:
-        EngineImpl(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue)
+        Impl(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue)
             : device_(device), cmd_queue_(cmd_queue), per_frame_constants_(device_.Get(), FrameCount, L"Per Frame Constants")
         {
             Verify(IsDXRSupported(device_.Get()));
@@ -697,15 +693,14 @@ namespace GoldenSun
             TIFHR(cmd_list_->Close());
 
             uint32_t constexpr MaxNumBottomLevelInstances = 1000;
-            acceleration_structure_ =
-                std::make_unique<RaytracingAccelerationStructureManager>(device_.Get(), MaxNumBottomLevelInstances, FrameCount);
+            acceleration_structure_ = std::make_unique<RaytracingAccelerationStructureManager>(device_.Get(), MaxNumBottomLevelInstances);
 
             this->CreateRootSignatures();
             this->CreateRayTracingPipelineStateObject();
             this->CreateDescriptorHeap();
         }
 
-        ~EngineImpl() noexcept
+        ~Impl() noexcept
         {
             this->ReleaseWindowSizeDependentResources();
         }
@@ -1279,7 +1274,7 @@ namespace GoldenSun
     };
 
 
-    Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new EngineImpl(device, cmd_queue))
+    Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new Impl(device, cmd_queue))
     {
     }
 

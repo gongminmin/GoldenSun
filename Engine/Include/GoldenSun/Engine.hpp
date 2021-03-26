@@ -17,7 +17,7 @@ namespace GoldenSun
 {
     class GOLDEN_SUN_API Engine
     {
-        DISALLOW_COPY_AND_ASSIGN(Engine);
+        DISALLOW_COPY_AND_ASSIGN(Engine)
 
     public:
         explicit Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue);
@@ -37,7 +37,7 @@ namespace GoldenSun
         ID3D12Resource* Output() const noexcept;
 
     private:
-        class EngineImpl;
-        EngineImpl* impl_;
+        class Impl;
+        Impl* impl_;
     };
 } // namespace GoldenSun

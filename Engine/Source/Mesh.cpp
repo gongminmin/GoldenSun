@@ -6,13 +6,13 @@ using namespace DirectX;
 
 namespace GoldenSun
 {
-    class Mesh::MeshImpl
+    class Mesh::Impl
     {
-        DISALLOW_COPY_AND_ASSIGN(MeshImpl);
-        DISALLOW_COPY_MOVE_AND_ASSIGN(MeshImpl);
+        DISALLOW_COPY_AND_ASSIGN(Impl)
+        DISALLOW_COPY_MOVE_AND_ASSIGN(Impl)
 
     public:
-        MeshImpl(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
+        Impl(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
             : vertex_format_(vertex_fmt), vertex_stride_in_bytes_(vb_stride_in_bytes), index_format_(index_fmt),
               index_stride_in_bytes_(ib_stride_in_bytes)
         {
@@ -183,7 +183,7 @@ namespace GoldenSun
 
 
     Mesh::Mesh(DXGI_FORMAT vertex_fmt, uint32_t vb_stride_in_bytes, DXGI_FORMAT index_fmt, uint32_t ib_stride_in_bytes)
-        : impl_(new MeshImpl(vertex_fmt, vb_stride_in_bytes, index_fmt, ib_stride_in_bytes))
+        : impl_(new Impl(vertex_fmt, vb_stride_in_bytes, index_fmt, ib_stride_in_bytes))
     {
     }
 

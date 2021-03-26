@@ -316,7 +316,7 @@ namespace GoldenSun
         uint64_t required_size = 0;
         device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        GpuUploadBuffer upload_buffer(device_.Get(), required_size, L"UploadBuffer");
+        GpuUploadBuffer upload_buffer(device_.Get(), static_cast<uint32_t>(required_size), L"UploadBuffer");
 
         assert(row_size_in_bytes >= width * 4);
 
@@ -374,7 +374,7 @@ namespace GoldenSun
         uint64_t required_size = 0;
         device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-        GpuReadbackBuffer readback_buffer(device_.Get(), required_size, L"ReadbackBuffer");
+        GpuReadbackBuffer readback_buffer(device_.Get(), static_cast<uint32_t>(required_size), L"ReadbackBuffer");
 
         D3D12_TEXTURE_COPY_LOCATION src;
         src.pResource = texture;
@@ -649,13 +649,7 @@ namespace GoldenSun
             }
         }
 
-        if (!expected_image)
-        {
-            std::string const expected_file = result_dir_ + expected_name + ".png";
-            std::cout << "Saving expected image to " << expected_file << '\n';
-            this->SaveTexture(actual_image, expected_file.c_str());
-        }
-        else
+        if (expected_image)
         {
             auto result = this->CompareImages(expected_image.Get(), actual_image, channel_tolerance);
             if (result.error_image)
@@ -674,6 +668,12 @@ namespace GoldenSun
             EXPECT_LT(result.channel_errors[3], 1e-6f);
 
             EXPECT_FALSE(result.error_image);
+        }
+        else
+        {
+            std::string const expected_file = result_dir_ + expected_name + ".png";
+            std::cout << "Saving expected image to " << expected_file << '\n';
+            this->SaveTexture(actual_image, expected_file.c_str());
         }
     }
 } // namespace GoldenSun

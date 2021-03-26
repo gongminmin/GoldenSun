@@ -1,15 +1,15 @@
 #pragma once
 
+#include <GoldenSun/ComPtr.hpp>
+#include <GoldenSun/SmartPtrHelper.hpp>
+#include <GoldenSun/Util.hpp>
+
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
 #ifdef _DEBUG
 #include <dxgidebug.h>
 #endif
-
-#include <GoldenSun/ComPtr.hpp>
-#include <GoldenSun/SmartPtrHelper.hpp>
-#include <GoldenSun/Util.hpp>
 
 #include <gtest/gtest.h>
 

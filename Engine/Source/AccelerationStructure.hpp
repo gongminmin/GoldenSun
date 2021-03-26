@@ -17,7 +17,7 @@ namespace GoldenSun
 
     class AccelerationStructure
     {
-        DISALLOW_COPY_AND_ASSIGN(AccelerationStructure);
+        DISALLOW_COPY_AND_ASSIGN(AccelerationStructure)
 
     public:
         virtual ~AccelerationStructure() noexcept = default;
@@ -27,13 +27,13 @@ namespace GoldenSun
 
         void AddBarrier(ID3D12GraphicsCommandList4* cmd_list) noexcept;
 
-        uint64_t RequiredScratchSize() const noexcept
+        uint32_t RequiredScratchSize() const noexcept
         {
-            return std::max(prebuild_info_.ScratchDataSizeInBytes, prebuild_info_.UpdateScratchDataSizeInBytes);
+            return static_cast<uint32_t>(std::max(prebuild_info_.ScratchDataSizeInBytes, prebuild_info_.UpdateScratchDataSizeInBytes));
         }
-        uint64_t RequiredResultDataSizeInBytes() const noexcept
+        uint32_t RequiredResultDataSizeInBytes() const noexcept
         {
-            return prebuild_info_.ResultDataMaxSizeInBytes;
+            return static_cast<uint32_t>(prebuild_info_.ResultDataMaxSizeInBytes);
         }
 
         ID3D12Resource* Resource() const noexcept
@@ -64,7 +64,7 @@ namespace GoldenSun
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept;
 
         void CreateResource(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE type,
-            D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, wchar_t const* name);
+            D3D12_RAYTRACING_GEOMETRY_DESC const* descs, uint32_t num_descs, std::wstring_view name);
 
     protected:
         GpuDefaultBuffer acceleration_structure_;
@@ -82,8 +82,8 @@ namespace GoldenSun
     {
     public:
         BottomLevelAccelerationStructure(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
-            Mesh const& mesh, bool allow_update = false, bool update_on_build = false, wchar_t const* name = nullptr);
-        ~BottomLevelAccelerationStructure() override = default;
+            Mesh const& mesh, bool allow_update = false, bool update_on_build = false, std::wstring_view name = L"");
+        ~BottomLevelAccelerationStructure() noexcept override;
 
         BottomLevelAccelerationStructure(BottomLevelAccelerationStructure&& other) noexcept;
         BottomLevelAccelerationStructure& operator=(BottomLevelAccelerationStructure&& other) noexcept;
@@ -120,8 +120,8 @@ namespace GoldenSun
     public:
         TopLevelAccelerationStructure(ID3D12Device5* device, uint32_t num_bottom_level_as_instance_descs,
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update = false, bool update_on_build = false,
-            wchar_t const* name = nullptr);
-        ~TopLevelAccelerationStructure() override = default;
+            std::wstring_view name = L"");
+        ~TopLevelAccelerationStructure() noexcept override;
 
         TopLevelAccelerationStructure(TopLevelAccelerationStructure&& other) noexcept;
         TopLevelAccelerationStructure& operator=(TopLevelAccelerationStructure&& other) noexcept;
@@ -133,7 +133,7 @@ namespace GoldenSun
     class RaytracingAccelerationStructureManager
     {
     public:
-        RaytracingAccelerationStructureManager(ID3D12Device5* device, uint32_t max_num_bottom_level_instances, uint32_t frame_count);
+        RaytracingAccelerationStructureManager(ID3D12Device5* device, uint32_t max_num_bottom_level_instances);
 
         uint32_t AddBottomLevelAS(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
             bool allow_update = false, bool perform_update_on_build = false);
@@ -141,7 +141,7 @@ namespace GoldenSun
             DirectX::XMMATRIX transform = DirectX::XMMatrixIdentity(), uint8_t instance_mask = 1);
 
         void ResetTopLevelAS(ID3D12Device5* device, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
-            bool allow_update = false, bool perform_update_on_build = false, wchar_t const* resource_name = nullptr);
+            bool allow_update = false, bool perform_update_on_build = false, std::wstring_view resource_name = L"");
 
         void Build(ID3D12GraphicsCommandList4* cmd_list, uint32_t frame_index, bool force_build = false);
 
@@ -179,6 +179,6 @@ namespace GoldenSun
         std::unique_ptr<TopLevelAccelerationStructure> top_level_as_;
 
         GpuDefaultBuffer scratch_buffer_;
-        uint64_t scratch_buffer_size_ = 0;
+        uint32_t scratch_buffer_size_ = 0;
     };
 } // namespace GoldenSun
