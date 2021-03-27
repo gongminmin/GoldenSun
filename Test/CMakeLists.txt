@@ -48,8 +48,9 @@ target_link_libraries(${exe_name}
     PRIVATE
         GoldenSunBase
         GoldenSunEngine
+        GoldenSunDevHelper
         d3d12 dxgi dxguid
-        gtest stb
+        gtest
 )
 
 add_dependencies(${exe_name} CopyExpecteds)

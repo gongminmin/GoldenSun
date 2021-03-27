@@ -1,7 +1,5 @@
 #pragma once
 
-#define INITGUID
-
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -13,9 +11,6 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-
-#include <d3d12.h>
-#include <dxgi1_6.h>
 
 #include <DirectXMath.h>
 

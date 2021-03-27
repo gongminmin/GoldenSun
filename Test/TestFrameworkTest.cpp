@@ -1,5 +1,7 @@
 #include "pch.hpp"
 
+#include <GoldenSun/TextureHelper.hpp>
+
 #include "GoldenSunTest.hpp"
 
 using namespace GoldenSun;
@@ -8,7 +10,8 @@ TEST(TestFrameworkTest, ExactMatch)
 {
     auto& test_env = TestEnv();
 
-    auto image = test_env.LoadTexture(test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
+    auto image = LoadTexture(
+        test_env.GpuSystem(), test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg", DXGI_FORMAT_R8G8B8A8_UNORM);
 
     auto result = test_env.CompareImages(image, image, 0.0f);
 
@@ -27,7 +30,8 @@ TEST(TestFrameworkTest, TolerantMatch)
 {
     auto& test_env = TestEnv();
 
-    auto expected_image = test_env.LoadTexture(test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
+    auto expected_image = LoadTexture(
+        test_env.GpuSystem(), test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg", DXGI_FORMAT_R8G8B8A8_UNORM);
     auto actual_image = test_env.CloneTexture(expected_image);
 
     uint32_t constexpr sabotage_x = 53;
@@ -62,7 +66,8 @@ TEST(TestFrameworkTest, Unmatch)
 {
     auto& test_env = TestEnv();
 
-    auto expected_image = test_env.LoadTexture(test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg");
+    auto expected_image = LoadTexture(
+        test_env.GpuSystem(), test_env.ExpectedDir() + "TestFrameworkTest/SIPI_Jelly_Beans_4.1.07.jpg", DXGI_FORMAT_R8G8B8A8_UNORM);
     auto actual_image = test_env.CloneTexture(expected_image);
 
     uint32_t constexpr sabotage_x = 53;

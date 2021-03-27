@@ -1,7 +1,7 @@
 #include "pch.hpp"
 
-#include "MeshLoader.hpp"
-#include "TextureLoader.hpp"
+#include <GoldenSun/MeshHelper.hpp>
+#include <GoldenSun/TextureHelper.hpp>
 
 #include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/Util.hpp>

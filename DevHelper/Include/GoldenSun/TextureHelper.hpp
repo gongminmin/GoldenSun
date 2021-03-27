@@ -9,4 +9,5 @@
 namespace GoldenSun
 {
     GpuTexture2D LoadTexture(GpuSystem& gpu_system, std::string_view file_name, DXGI_FORMAT format);
-}
+    void SaveTexture(GpuSystem& gpu_system, GpuTexture2D const& texture, std::string_view file_name);
+} // namespace GoldenSun

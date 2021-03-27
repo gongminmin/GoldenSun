@@ -22,6 +22,11 @@ namespace GoldenSun
         void SetUp() override;
         void TearDown() override;
 
+        std::string const& AssetDir() const noexcept
+        {
+            return asset_dir_;
+        }
+
         std::string const& ExpectedDir() const noexcept
         {
             return expected_dir_;
@@ -32,8 +37,6 @@ namespace GoldenSun
             return gpu_system_;
         }
 
-        GpuTexture2D LoadTexture(std::string const& file_name);
-        void SaveTexture(GpuTexture2D const& texture, std::string const& file_name);
         GpuTexture2D CloneTexture(GpuTexture2D& texture);
 
         struct CompareResult
@@ -49,6 +52,7 @@ namespace GoldenSun
         void CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance = 1 / 255.0f);
 
     private:
+        std::string asset_dir_;
         std::string expected_dir_;
         std::string result_dir_;
 

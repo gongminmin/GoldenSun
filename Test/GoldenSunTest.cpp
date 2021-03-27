@@ -6,13 +6,10 @@
 #include <GoldenSun/Util.hpp>
 #include <GoldenSun/Uuid.hpp>
 
+#include <GoldenSun/TextureHelper.hpp>
+
 #include <filesystem>
 #include <iostream>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
 
 #include "CompiledShaders/Comparator.h"
 
@@ -42,8 +39,10 @@ namespace GoldenSun
             Verify((size != 0) && (size != std::size(exe_file)));
 
             std::filesystem::path exe_path = exe_file;
-            expected_dir_ = (exe_path.parent_path() / "Test/Expected/").string();
-            result_dir_ = (exe_path.parent_path() / "Test/Result/").string();
+            auto parent_path = exe_path.parent_path();
+            asset_dir_ = (parent_path / "Assets/").string();
+            expected_dir_ = (parent_path / "Test/Expected/").string();
+            result_dir_ = (parent_path / "Test/Result/").string();
             if (!std::filesystem::exists(result_dir_))
             {
                 std::filesystem::create_directory(result_dir_);
@@ -54,43 +53,6 @@ namespace GoldenSun
     void TestEnvironment::TearDown()
     {
         gpu_system_.WaitForGpu();
-    }
-
-    GpuTexture2D TestEnvironment::LoadTexture(std::string const& file_name)
-    {
-        GpuTexture2D ret;
-
-        int width, height;
-        uint8_t* data = stbi_load(std::string(file_name).c_str(), &width, &height, nullptr, 4);
-        if (data != nullptr)
-        {
-            ret = gpu_system_.CreateTexture2D(width, height, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_GENERIC_READ);
-            auto cmd_list = gpu_system_.CreateCommandList();
-            ret.Upload(gpu_system_, cmd_list, 0, data);
-            gpu_system_.Execute(std::move(cmd_list));
-
-            stbi_image_free(data);
-        }
-
-        return ret;
-    }
-
-    void TestEnvironment::SaveTexture(GpuTexture2D const& texture, std::string const& file_name)
-    {
-        assert(texture);
-
-        uint32_t const width = texture.Width(0);
-        uint32_t const height = texture.Height(0);
-        uint32_t const format_size = FormatSize(texture.Format());
-
-        std::vector<uint8_t> data(width * height * format_size);
-        auto cmd_list = gpu_system_.CreateCommandList();
-        texture.Readback(gpu_system_, cmd_list, 0, data.data());
-        gpu_system_.Execute(std::move(cmd_list));
-
-        stbi_write_png(
-            file_name.c_str(), static_cast<int>(width), static_cast<int>(height), 4, data.data(), static_cast<int>(width * format_size));
     }
 
     GpuTexture2D TestEnvironment::CloneTexture(GpuTexture2D& texture)
@@ -267,7 +229,7 @@ namespace GoldenSun
 
     void TestEnvironment::CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance)
     {
-        auto expected_image = this->LoadTexture(expected_dir_ + expected_name + ".png");
+        auto expected_image = LoadTexture(gpu_system_, expected_dir_ + expected_name + ".png", DXGI_FORMAT_R8G8B8A8_UNORM);
 
         {
             std::filesystem::path leaf_dir = result_dir_ + expected_name;
@@ -283,9 +245,9 @@ namespace GoldenSun
             auto result = this->CompareImages(expected_image, actual_image, channel_tolerance);
             if (result.error_image)
             {
-                this->SaveTexture(expected_image, result_dir_ + expected_name + "_expected.png");
-                this->SaveTexture(actual_image, result_dir_ + expected_name + "_actual.png");
-                this->SaveTexture(result.error_image, result_dir_ + expected_name + "_diff.png");
+                SaveTexture(gpu_system_, expected_image, result_dir_ + expected_name + "_expected.png");
+                SaveTexture(gpu_system_, actual_image, result_dir_ + expected_name + "_actual.png");
+                SaveTexture(gpu_system_, result.error_image, result_dir_ + expected_name + "_diff.png");
             }
 
             EXPECT_FALSE(result.format_unmatch);
@@ -302,7 +264,7 @@ namespace GoldenSun
         {
             std::string const expected_file = result_dir_ + expected_name + ".png";
             std::cout << "Saving expected image to " << expected_file << '\n';
-            this->SaveTexture(actual_image, expected_file.c_str());
+            SaveTexture(gpu_system_, actual_image, expected_file.c_str());
         }
     }
 } // namespace GoldenSun

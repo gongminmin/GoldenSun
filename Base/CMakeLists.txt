@@ -34,7 +34,6 @@ set(gpu_source_files
     Source/Gpu/GpuTexture2D.cpp
 )
 
-
 set(gpu_header_files
     Include/GoldenSun/Gpu/GpuBuffer.hpp
     Include/GoldenSun/Gpu/GpuBufferHelper.hpp

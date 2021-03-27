@@ -2,8 +2,6 @@ set(exe_name "GoldenSunApp")
 
 set(source_files
     GoldenSunApp.cpp
-    MeshLoader.cpp
-    TextureLoader.cpp
     Main.cpp
     Timer.cpp
     WindowWin32.cpp
@@ -11,8 +9,6 @@ set(source_files
 
 set(header_files
     GoldenSunApp.hpp
-    MeshLoader.hpp
-    TextureLoader.hpp
     pch.hpp
     Timer.hpp
     WindowWin32.hpp
@@ -36,7 +32,7 @@ target_link_libraries(${exe_name}
     PRIVATE
         GoldenSunBase
         GoldenSunEngine
+        GoldenSunDevHelper
         d3d12 dxgi dxguid
-        assimp stb
 )
 add_dependencies(${exe_name} CopyAssets)

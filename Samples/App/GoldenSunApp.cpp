@@ -1,7 +1,8 @@
 #include "pch.hpp"
 
 #include "GoldenSunApp.hpp"
-#include "MeshLoader.hpp"
+
+#include <GoldenSun/MeshHelper.hpp>
 
 #include <algorithm>
 #include <filesystem>
