@@ -47,9 +47,9 @@ namespace GoldenSun
 
             GpuTexture2D error_image;
         };
-        CompareResult CompareImages(GpuTexture2D& expected_image, GpuTexture2D& actual_image, float channel_tolerance = 1 / 255.0f);
+        CompareResult CompareImages(GpuTexture2D& expected_image, GpuTexture2D& actual_image, float channel_tolerance = 2 / 255.0f);
 
-        void CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance = 1 / 255.0f);
+        void CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance = 2 / 255.0f);
 
     private:
         std::string asset_dir_;

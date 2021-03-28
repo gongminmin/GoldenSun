@@ -1,3 +1,38 @@
+static uint const MaxRayRecursionDepth = 2;
+
+// Ray types traced in this sample.
+namespace RayType
+{
+    enum Enum
+    {
+        Radiance = 0, // ~ Primary, reflected camera/view rays calculating color for each hit.
+        Shadow,       // ~ Shadow/visibility rays, only testing for occlusion
+        Count
+    };
+}
+
+namespace TraceRayParameters
+{
+    static uint const InstanceMask = ~0; // Everything is visible.
+
+    namespace HitGroup
+    {
+        static uint const Offset[RayType::Count] = {
+            0, // Radiance ray
+            1  // Shadow ray
+        };
+        static const uint GeometryStride = RayType::Count;
+    } // namespace HitGroup
+
+    namespace MissShader
+    {
+        static uint const Offset[RayType::Count] = {
+            0, // Radiance ray
+            1  // Shadow ray
+        };
+    }
+} // namespace TraceRayParameters
+
 struct SceneConstantBuffer
 {
     float4x4 inv_view_proj;
@@ -6,6 +41,7 @@ struct SceneConstantBuffer
     float4 light_pos;
     float4 light_color;
     float4 light_falloff;
+    bool light_shadowing;
 };
 
 struct PbrMaterial
@@ -44,8 +80,10 @@ StructuredBuffer<PbrMaterial> material_buffer : register(t1, space0);
 SamplerState linear_wrap_sampler : register(s0, space0);
 
 ConstantBuffer<PrimitiveConstantBuffer> primitive_cb : register(b0, space1);
+
 StructuredBuffer<Vertex> vertex_buffer : register(t0, space1);
 ByteAddressBuffer index_buffer : register(t1, space1);
+
 Texture2D albedo_tex : register(t2, space1);
 Texture2D metallic_glossiness_tex : register(t3, space1);
 Texture2D emissive_tex : register(t4, space1);
@@ -114,46 +152,109 @@ float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
     return 1 / dot(atten, float3(1, d, d2));
 }
 
-float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord)
+float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, bool in_shadow)
 {
     PbrMaterial mtl = material_buffer[primitive_cb.material_id];
 
-    float3 const ambient = 0.1f;
+    float const ambient_factor = 0.1f;
 
-    float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
-    normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
+    float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
+    float3 const albedo = mtl.albedo * albedo_data.xyz;
+    float const opacity = mtl.opacity * albedo_data.w;
 
-    float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
-    float3 const halfway = normalize(light_dir + normal);
-    float const n_dot_l = max(dot(light_dir, normal), 0);
+    float3 shading = 0;
+    if (!in_shadow)
+    {
+        float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
+        normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
 
-    float3 const albedo = mtl.albedo * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
-    float const opacity = mtl.opacity * albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).w;
-    float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
+        float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
+        float3 const halfway = normalize(light_dir + normal);
+        float const n_dot_l = max(dot(light_dir, normal), 0);
 
-    float const MAX_GLOSSINESS = 8192;
-    float const glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
+        float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
 
-    float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
+        float const MAX_GLOSSINESS = 8192;
+        float const glossiness =
+            mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
 
-    float const attenuation = AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz);
+        float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
 
-    float3 const c_diff = DiffuseColor(albedo, metallic);
-    float3 const c_spec = SpecularColor(albedo, metallic);
+        float const attenuation = (in_shadow ? 0 : 1) * AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz);
 
-    float3 const diffuse = c_diff;
-    float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
+        float3 const c_diff = DiffuseColor(albedo, metallic);
+        float3 const c_spec = SpecularColor(albedo, metallic);
 
-    float3 const shading = attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * scene_cb.light_color.rgb +
-                           emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+        float3 const diffuse = c_diff;
+        float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
 
-    return float4(albedo * ambient + shading, opacity);
+        shading = attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * scene_cb.light_color.rgb;
+    }
+
+    float3 const ambient = ambient_factor * albedo;
+    float3 const emissive = emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+
+    return float4(ambient + emissive + shading, opacity);
 }
 
-struct RayPayload
+struct RadianceRayPayload
 {
     float4 color;
+    uint recursion_depth;
 };
+
+struct ShadowRayPayload
+{
+    bool hit;
+};
+
+struct Ray
+{
+    float3 origin;
+    float3 direction;
+};
+
+float4 TraceRadianceRay(Ray ray, uint curr_ray_recursion_depth)
+{
+    if (curr_ray_recursion_depth >= MaxRayRecursionDepth)
+    {
+        return float4(0, 0, 0, 0);
+    }
+
+    RayDesc ray_desc;
+    ray_desc.Origin = ray.origin;
+    ray_desc.Direction = ray.direction;
+    ray_desc.TMin = 0.001f;
+    ray_desc.TMax = 10000.0f;
+
+    RadianceRayPayload payload = {float4(0, 0, 0, 0), curr_ray_recursion_depth + 1};
+    TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, TraceRayParameters::InstanceMask,
+        TraceRayParameters::HitGroup::Offset[RayType::Radiance], TraceRayParameters::HitGroup::GeometryStride,
+        TraceRayParameters::MissShader::Offset[RayType::Radiance], ray_desc, payload);
+
+    return payload.color;
+}
+
+bool TraceShadowRay(Ray ray, uint curr_ray_recursion_depth)
+{
+    if (curr_ray_recursion_depth >= MaxRayRecursionDepth)
+    {
+        return false;
+    }
+
+    RayDesc ray_desc;
+    ray_desc.Origin = ray.origin;
+    ray_desc.Direction = ray.direction;
+    ray_desc.TMin = 0.001f;
+    ray_desc.TMax = 10000.0f;
+
+    ShadowRayPayload payload = {true};
+    TraceRay(scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        TraceRayParameters::InstanceMask, TraceRayParameters::HitGroup::Offset[RayType::Shadow],
+        TraceRayParameters::HitGroup::GeometryStride, TraceRayParameters::MissShader::Offset[RayType::Shadow], ray_desc, payload);
+
+    return payload.hit;
+}
 
 [shader("raygeneration")]
 void RayGenShader()
@@ -164,16 +265,14 @@ void RayGenShader()
     float4 pos_ws = mul(float4(pos_ss, 0, 1), scene_cb.inv_view_proj);
     pos_ws /= pos_ws.w;
 
-    RayDesc ray;
-    ray.Origin = scene_cb.camera_pos.xyz;
-    ray.Direction = normalize(pos_ws.xyz - ray.Origin);
-    ray.TMin = 0.001f;
-    ray.TMax = 10000.0f;
+    Ray ray;
+    ray.origin = scene_cb.camera_pos.xyz;
+    ray.direction = normalize(pos_ws.xyz - ray.origin);
 
-    RayPayload payload = {float4(0, 0, 0, 0)};
-    TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, ray, payload);
+    uint curr_recursion_depth = 0;
+    float4 color = TraceRadianceRay(ray, curr_recursion_depth);
 
-    render_target[DispatchRaysIndex().xy] = payload.color;
+    render_target[DispatchRaysIndex().xy] = color;
 }
 
 float3 TransformQuat(float3 v, float4 quat)
@@ -182,9 +281,16 @@ float3 TransformQuat(float3 v, float4 quat)
 }
 
 [shader("closesthit")]
-void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
+void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     float3 const hit_position = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+
+    bool in_shadow = false;
+    if (scene_cb.light_shadowing)
+    {
+        Ray const shadow_ray = {hit_position, normalize(scene_cb.light_pos.xyz - hit_position)};
+        in_shadow = TraceShadowRay(shadow_ray, payload.recursion_depth);
+    }
 
     uint const index_size = 2;
     uint const indices_per_triangle = 3;
@@ -214,7 +320,7 @@ void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAt
     float3 const bitangent = vertex_bitangents[0] + attr.barycentrics.x * (vertex_bitangents[1] - vertex_bitangents[0]) +
                              attr.barycentrics.y * (vertex_bitangents[2] - vertex_bitangents[0]);
     float3 const normal = vertex_normals[0] + attr.barycentrics.x * (vertex_normals[1] - vertex_normals[0]) +
-                           attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
+                          attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
     float3x3 const tangent_frame = {normalize(tangent), normalize(bitangent), normalize(normal)};
 
     float2 const vertex_tex_coords[] = {
@@ -222,12 +328,18 @@ void ClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersectionAt
     float2 const tex_coord = vertex_tex_coords[0] + attr.barycentrics.x * (vertex_tex_coords[1] - vertex_tex_coords[0]) +
                              attr.barycentrics.y * (vertex_tex_coords[2] - vertex_tex_coords[0]);
 
-    payload.color = CalcLighting(hit_position, tangent_frame, tex_coord);
+    payload.color = CalcLighting(hit_position, tangent_frame, tex_coord, in_shadow);
 }
 
 [shader("miss")]
-void MissShader(inout RayPayload payload)
+void MissShaderRadianceRay(inout RadianceRayPayload payload)
 {
     float4 const background = float4(0.2f, 0.4f, 0.6f, 1.0f);
     payload.color = background;
+}
+
+[shader("miss")]
+void MissShaderShadowRay(inout ShadowRayPayload payload)
+{
+    payload.hit = false;
 }

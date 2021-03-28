@@ -47,7 +47,7 @@ TEST_F(RayCastingTest, SingleObject)
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
         XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
     }
 
     Vertex const cube_vertices[] = {
@@ -121,7 +121,7 @@ TEST_F(RayCastingTest, MultipleObjects)
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
         XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
     }
 
     Vertex const cube_vertices[] = {
@@ -219,7 +219,7 @@ TEST_F(RayCastingTest, Instancing)
         XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
         XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
     }
 
     Vertex const cube_vertices[] = {
@@ -323,7 +323,7 @@ TEST_F(RayCastingTest, Mesh)
         XMFLOAT3 const light_color = {10.0f, 12.0f, 10.0f};
         XMFLOAT3 const light_falloff = {1, 0, 1};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff);
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
     }
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
@@ -346,6 +346,56 @@ TEST_F(RayCastingTest, Mesh)
 
     GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/Mesh", actual_image);
+
+    gpu_system.MoveToNextFrame();
+}
+
+TEST_F(RayCastingTest, MeshShadowed)
+{
+    auto& test_env = TestEnv();
+    auto& gpu_system = test_env.GpuSystem();
+
+    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+
+    {
+        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
+        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
+        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+
+        float const fov = XMConvertToRadians(45);
+        float const near_plane = 0.1f;
+        float far_plane = 20;
+
+        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+    }
+    {
+        XMFLOAT3 const light_pos = {2.0f, 2.0f, 0.0f};
+        XMFLOAT3 const light_color = {10.0f, 12.0f, 10.0f};
+        XMFLOAT3 const light_falloff = {1, 0, 1};
+
+        golden_sun_engine_->Light(light_pos, light_color, light_falloff, true);
+    }
+
+    auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
+    for (auto& mesh : meshes)
+    {
+        XMFLOAT4X4 world;
+        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixRotationY(0.4f) * XMMatrixTranslation(-1.8f, 0.5f, 0));
+        mesh.AddInstance(world);
+
+        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.8f, 0.8f, 0.8f) * XMMatrixRotationY(-0.8f) *
+                                    XMMatrixTranslation(+1.8f, 0, 0));
+        mesh.AddInstance(world);
+    }
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+
+    auto cmd_list = gpu_system.CreateCommandList();
+    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+    golden_sun_engine_->Render(d3d12_cmd_list);
+    gpu_system.Execute(std::move(cmd_list));
+
+    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    test_env.CompareWithExpected("RayCastingTest/MeshShadowed", actual_image);
 
     gpu_system.MoveToNextFrame();
 }

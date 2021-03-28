@@ -104,7 +104,7 @@ namespace GoldenSun
             light_color_ = {20.0f, 20.0f, 20.0f};
             light_falloff_ = {1, 0, 1};
 
-            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_);
+            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_, true);
         }
 
         meshes_ = LoadMesh(gpu_system_, asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
@@ -142,7 +142,7 @@ namespace GoldenSun
 
             XMStoreFloat3(&light_pos_, light_pos);
 
-            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_);
+            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_, true);
         }
 
         if (window_visible_)

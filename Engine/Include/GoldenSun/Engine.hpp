@@ -30,7 +30,7 @@ namespace GoldenSun
         void Geometries(Mesh const* meshes, uint32_t num_meshes);
         void Camera(DirectX::XMFLOAT3 const& eye, DirectX::XMFLOAT3 const& look_at, DirectX::XMFLOAT3 const& up, float fov,
             float near_plane, float far_plane);
-        void Light(DirectX::XMFLOAT3 const& pos, DirectX::XMFLOAT3 const& color, DirectX::XMFLOAT3 const& falloff);
+        void Light(DirectX::XMFLOAT3 const& pos, DirectX::XMFLOAT3 const& color, DirectX::XMFLOAT3 const& falloff, bool shadowing);
 
         void Render(ID3D12GraphicsCommandList4* cmd_list);
 

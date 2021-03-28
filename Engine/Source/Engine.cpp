@@ -29,11 +29,20 @@ DEFINE_UUID_OF(ID3D12StateObjectProperties);
 
 namespace
 {
-    struct RayPayload
+    static uint32_t constexpr MaxRayRecursionDepth = 2;
+
+    struct RadianceRayPayload
     {
         XMFLOAT4 color;
+        uint32_t recursion_depth;
     };
-    static_assert(sizeof(RayPayload) == sizeof(XMFLOAT4));
+    static_assert(sizeof(RadianceRayPayload) == sizeof(XMFLOAT4) + sizeof(uint32_t));
+
+    struct ShadowRayPayload
+    {
+        bool hit;
+    };
+    static_assert(sizeof(ShadowRayPayload) == sizeof(bool));
 
     struct RayAttrib
     {
@@ -277,6 +286,22 @@ namespace
             ++association_.NumExports;
             exports_.emplace_back(export_name.empty() ? nullptr : string_table_.emplace_back(std::move(export_name)).c_str());
             association_.pExports = exports_.data();
+        }
+
+        template <size_t N>
+        void AddExports(wchar_t const* (&exports)[N])
+        {
+            for (size_t i = 0; i < N; i++)
+            {
+                this->AddExport(exports[i]);
+            }
+        }
+        void AddExports(wchar_t const* const* exports, uint32_t n)
+        {
+            for (uint32_t i = 0; i < n; i++)
+            {
+                this->AddExport(exports[i]);
+            }
         }
 
     private:
@@ -538,6 +563,7 @@ namespace
         XMFLOAT4 light_pos;
         XMFLOAT4 light_color;
         XMFLOAT4 light_falloff;
+        uint32_t light_shadowing;
     };
 
     struct PrimitiveConstantBuffer
@@ -723,11 +749,12 @@ namespace GoldenSun
             far_plane_ = far_plane;
         }
 
-        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff)
+        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff, bool shadowing)
         {
             light_pos_ = pos;
             light_color_ = color;
             light_falloff_ = falloff;
+            light_shadowing_ = shadowing;
         }
 
         void Render(ID3D12GraphicsCommandList4* d3d12_cmd_list)
@@ -750,6 +777,7 @@ namespace GoldenSun
                 per_frame_constants_->light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
                 per_frame_constants_->light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
                 per_frame_constants_->light_falloff = XMFLOAT4(light_falloff_.x, light_falloff_.y, light_falloff_.z, 1);
+                per_frame_constants_->light_shadowing = light_shadowing_;
 
                 per_frame_constants_.UploadToGpu(frame_index);
 
@@ -897,29 +925,40 @@ namespace GoldenSun
             lib.SetDxilLibrary(&lib_dxil);
             lib.DefineExport(c_ray_gen_shader_name);
             lib.DefineExport(c_closest_hit_shader_name);
-            lib.DefineExport(c_miss_shader_name);
+            for (auto const* miss_shader_name : c_miss_shader_names)
+            {
+                lib.DefineExport(miss_shader_name);
+            }
 
-            auto& hit_group = ray_tracing_pipeline.CreateSubobject<D3D12HitGroupSubobject>();
-            hit_group.SetClosestHitShaderImport(c_closest_hit_shader_name);
-            hit_group.SetHitGroupExport(c_hit_group_name);
-            hit_group.SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+            for (uint32_t ray_type = 0; ray_type < ConvertToUint(RayType::Count); ++ray_type)
+            {
+                auto& hit_group = ray_tracing_pipeline.CreateSubobject<D3D12HitGroupSubobject>();
+                if (ray_type == ConvertToUint(RayType::Radiance))
+                {
+                    hit_group.SetClosestHitShaderImport(c_closest_hit_shader_name);
+                }
+                hit_group.SetHitGroupExport(c_hit_group_names[ray_type]);
+                hit_group.SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+            }
 
             auto& shader_config = ray_tracing_pipeline.CreateSubobject<D3D12RayTracingShaderConfigSubobject>();
-            shader_config.Config(sizeof(RayPayload), sizeof(RayAttrib));
+            uint32_t constexpr payload_size = std::max<uint32_t>(sizeof(RadianceRayPayload), sizeof(ShadowRayPayload));
+            uint32_t constexpr attribute_size = sizeof(RayAttrib);
+            shader_config.Config(payload_size, attribute_size);
 
             auto& local_root_signature = ray_tracing_pipeline.CreateSubobject<D3D12LocalRootSignatureSubobject>();
             local_root_signature.SetRootSignature(ray_tracing_local_root_signature_.Get());
             {
                 auto& root_signature_association = ray_tracing_pipeline.CreateSubobject<D3D12SubobjectToExportsAssociationSubobject>();
                 root_signature_association.SetSubobjectToAssociate(local_root_signature.Get());
-                root_signature_association.AddExport(c_hit_group_name);
+                root_signature_association.AddExports(c_hit_group_names);
             }
 
             auto& global_root_signature = ray_tracing_pipeline.CreateSubobject<D3D12GlobalRootSignatureSubobject>();
             global_root_signature.SetRootSignature(ray_tracing_global_root_signature_.Get());
 
             auto& pipeline_config = ray_tracing_pipeline.CreateSubobject<D3D12RayTracingPipelineConfigSubobject>();
-            pipeline_config.Config(1);
+            pipeline_config.Config(MaxRayRecursionDepth);
 
             auto const& state_obj_desc = ray_tracing_pipeline.Retrieve();
 
@@ -934,14 +973,20 @@ namespace GoldenSun
         void BuildShaderTables(Mesh const* meshes, uint32_t num_meshes)
         {
             void* ray_gen_shader_identifier;
-            void* hit_group_shader_identifier;
-            void* miss_shader_identifier;
+            void* hit_group_shader_identifiers[ConvertToUint(RayType::Count)];
+            void* miss_shader_identifiers[ConvertToUint(RayType::Count)];
             uint32_t shader_identifier_size;
             {
                 ComPtr<ID3D12StateObjectProperties> state_obj_properties = state_obj_.As<ID3D12StateObjectProperties>();
                 ray_gen_shader_identifier = state_obj_properties->GetShaderIdentifier(c_ray_gen_shader_name);
-                miss_shader_identifier = state_obj_properties->GetShaderIdentifier(c_miss_shader_name);
-                hit_group_shader_identifier = state_obj_properties->GetShaderIdentifier(c_hit_group_name);
+                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                {
+                    miss_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_miss_shader_names[i]);
+                }
+                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                {
+                    hit_group_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_hit_group_names[i]);
+                }
                 shader_identifier_size = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
             }
 
@@ -954,10 +999,13 @@ namespace GoldenSun
                 ray_gen_shader_table.ExtractBuffer(ray_gen_shader_table_);
             }
             {
-                uint32_t const num_shader_records = 1;
+                uint32_t const num_shader_records = ConvertToUint(RayType::Count);
                 uint32_t const shader_record_size = shader_identifier_size;
                 ShaderTable miss_shader_table(gpu_system_, num_shader_records, shader_record_size, L"MissShaderTable");
-                miss_shader_table.push_back(ShaderRecord(miss_shader_identifier, shader_identifier_size));
+                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                {
+                    miss_shader_table.push_back(ShaderRecord(miss_shader_identifiers[i], shader_identifier_size));
+                }
 
                 miss_shader_table_stride_ = miss_shader_table.ShaderRecordSize();
                 miss_shader_table.ExtractBuffer(miss_shader_table_);
@@ -967,11 +1015,12 @@ namespace GoldenSun
                 uint32_t num_shader_records = 0;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
-                    num_shader_records += meshes[i].NumPrimitives();
+                    num_shader_records += meshes[i].NumPrimitives() * ConvertToUint(RayType::Count);
                 }
 
                 uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
                 ShaderTable hit_group_shader_table(gpu_system_, num_shader_records, shader_record_size, L"HitGroupShaderTable");
+
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     auto& geometry = acceleration_structure_->BottomLevelAS(i);
@@ -1044,8 +1093,11 @@ namespace GoldenSun
                         gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
                         root_arguments.occlusion_gpu_handle = occlusion_gpu_handle;
 
-                        hit_group_shader_table.push_back(
-                            ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                        for (auto& hit_group_shader_identifier : hit_group_shader_identifiers)
+                        {
+                            hit_group_shader_table.push_back(
+                                ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                        }
                     }
                 }
 
@@ -1085,10 +1137,17 @@ namespace GoldenSun
         GpuTexture2D ray_tracing_output_;
         GpuDescriptorBlock ray_tracing_output_desc_block_;
 
-        static constexpr wchar_t c_ray_gen_shader_name[] = L"RayGenShader";
-        static constexpr wchar_t c_hit_group_name[] = L"HitGroup";
-        static constexpr wchar_t c_closest_hit_shader_name[] = L"ClosestHitShader";
-        static constexpr wchar_t c_miss_shader_name[] = L"MissShader";
+        enum class RayType
+        {
+            Radiance = 0, // ~ Primary, reflected camera/view rays calculating color for each hit.
+            Shadow,       // ~ Shadow/visibility rays, only testing for occlusion
+            Count
+        };
+
+        static wchar_t const* c_ray_gen_shader_name;
+        static wchar_t const* c_hit_group_names[ConvertToUint(RayType::Count)];
+        static wchar_t const* c_closest_hit_shader_name;
+        static wchar_t const* c_miss_shader_names[ConvertToUint(RayType::Count)];
         GpuUploadBuffer ray_gen_shader_table_;
         GpuUploadBuffer hit_group_shader_table_;
         uint32_t hit_group_shader_table_stride_ = 0xFFFFFFFFU;
@@ -1106,7 +1165,13 @@ namespace GoldenSun
         XMFLOAT3 light_pos_;
         XMFLOAT3 light_color_;
         XMFLOAT3 light_falloff_;
+        bool light_shadowing_;
     };
+
+    wchar_t const* Engine::Impl::c_ray_gen_shader_name = L"RayGenShader";
+    wchar_t const* Engine::Impl::c_hit_group_names[] = {L"HitGroupRadianceRay", L"HitGroupShadowRay"};
+    wchar_t const* Engine::Impl::c_closest_hit_shader_name = L"ClosestHitShader";
+    wchar_t const* Engine::Impl::c_miss_shader_names[] = {L"MissShaderRadianceRay", L"MissShaderShadowRay"};
 
 
     Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new Impl(device, cmd_queue))
@@ -1149,9 +1214,9 @@ namespace GoldenSun
         return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff)
+    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff, bool shadowing)
     {
-        return impl_->Light(pos, color, falloff);
+        return impl_->Light(pos, color, falloff, shadowing);
     }
 
     void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)
