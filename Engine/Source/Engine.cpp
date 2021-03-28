@@ -674,16 +674,24 @@ namespace GoldenSun
 
         void Geometries(Mesh const* meshes, uint32_t num_meshes)
         {
-            gpu_system_.ReallocCbvSrvUavDescBlock(buffer_desc_block_, 1 + num_meshes * 2);
-
+            uint32_t num_buffers;
+            uint32_t num_materials;
             {
+                buffer_start_indices_.assign(1, 0);
                 material_start_indices_.assign(1, 0);
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
+                    buffer_start_indices_.push_back(buffer_start_indices_.back() + meshes[i].NumPrimitives() * 2);
                     material_start_indices_.push_back(material_start_indices_.back() + meshes[i].NumMaterials());
                 }
 
-                uint32_t const num_materials = material_start_indices_.back();
+                num_buffers = buffer_start_indices_.back();
+                num_materials = material_start_indices_.back();
+            }
+
+            gpu_system_.ReallocCbvSrvUavDescBlock(buffer_desc_block_, 1 + num_buffers * 2);
+
+            {
                 material_buffer_ = StructuredBuffer<PbrMaterial::Buffer>(gpu_system_, num_materials, 1, L"Material Buffer");
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
@@ -705,13 +713,19 @@ namespace GoldenSun
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
-                    auto& vb = vertex_buffers_.emplace_back(GpuBuffer(meshes[i].VertexBuffer(0), D3D12_RESOURCE_STATE_GENERIC_READ));
-                    gpu_system_.CreateShaderResourceView(vb, meshes[i].NumVertices(0), meshes[i].VertexStrideInBytes(),
-                        OffsetHandle(buffer_desc_block_.CpuHandle(), 1 + (i * 2 + 0), descriptor_size_));
+                    for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
+                    {
+                        auto [vb_cpu_handle, vb_gpu_handle] = OffsetHandle(buffer_desc_block_.CpuHandle(), buffer_desc_block_.GpuHandle(),
+                            1 + buffer_start_indices_[i] + j * 2 + 0, descriptor_size_);
+                        GpuBuffer vb(meshes[i].VertexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
+                        gpu_system_.CreateShaderResourceView(vb, meshes[i].NumVertices(j), meshes[i].VertexStrideInBytes(), vb_cpu_handle);
 
-                    auto& ib = index_buffers_.emplace_back(GpuBuffer(meshes[i].IndexBuffer(0), D3D12_RESOURCE_STATE_GENERIC_READ));
-                    gpu_system_.CreateShaderResourceView(ib, meshes[i].NumIndices(0) * meshes[i].IndexStrideInBytes() / 4, 0,
-                        OffsetHandle(buffer_desc_block_.CpuHandle(), 1 + (i * 2 + 1), descriptor_size_));
+                        auto [ib_cpu_handle, ib_gpu_handle] = OffsetHandle(buffer_desc_block_.CpuHandle(), buffer_desc_block_.GpuHandle(),
+                            1 + buffer_start_indices_[i] + j * 2 + 1, descriptor_size_);
+                        GpuBuffer ib(meshes[i].IndexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
+                        gpu_system_.CreateShaderResourceView(
+                            ib, meshes[i].NumIndices(j) * meshes[i].IndexStrideInBytes() / 4, 0, ib_cpu_handle);
+                    }
 
                     bool update_on_build = false;
                     acceleration_structure_->AddBottomLevelAS(gpu_system_, build_flags, meshes[i], update_on_build, update_on_build);
@@ -1031,8 +1045,10 @@ namespace GoldenSun
                     {
                         LocalRootSignature::RootArguments root_arguments;
                         root_arguments.cb.material_id = material_start_indices_[i] + meshes[i].MaterialId(j);
-                        root_arguments.vb_gpu_handle = OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + (i * 2 + 0), descriptor_size_);
-                        root_arguments.ib_gpu_handle = OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + (i * 2 + 1), descriptor_size_);
+                        root_arguments.vb_gpu_handle =
+                            OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + buffer_start_indices_[i] + j * 2 + 0, descriptor_size_);
+                        root_arguments.ib_gpu_handle =
+                            OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + buffer_start_indices_[i] + j * 2 + 1, descriptor_size_);
 
                         auto const& material = meshes[i].Material(meshes[i].MaterialId(j));
 
@@ -1125,12 +1141,11 @@ namespace GoldenSun
         GpuDescriptorBlock buffer_desc_block_;
         GpuDescriptorBlock material_tex_desc_block_;
 
-        StructuredBuffer<PbrMaterial::Buffer> material_buffer_;
+        std::vector<uint32_t> buffer_start_indices_;
         std::vector<uint32_t> material_start_indices_;
-        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> default_textures_;
 
-        std::vector<GpuBuffer> vertex_buffers_;
-        std::vector<GpuBuffer> index_buffers_;
+        StructuredBuffer<PbrMaterial::Buffer> material_buffer_;
+        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> default_textures_;
 
         std::unique_ptr<RaytracingAccelerationStructureManager> acceleration_structure_;
 

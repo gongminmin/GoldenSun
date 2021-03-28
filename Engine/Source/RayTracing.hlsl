@@ -245,7 +245,7 @@ bool TraceShadowRay(Ray ray, uint curr_ray_recursion_depth)
     RayDesc ray_desc;
     ray_desc.Origin = ray.origin;
     ray_desc.Direction = ray.direction;
-    ray_desc.TMin = 0.001f;
+    ray_desc.TMin = 0.1f;
     ray_desc.TMax = 10000.0f;
 
     ShadowRayPayload payload = {true};
@@ -321,7 +321,27 @@ void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleInters
                              attr.barycentrics.y * (vertex_bitangents[2] - vertex_bitangents[0]);
     float3 const normal = vertex_normals[0] + attr.barycentrics.x * (vertex_normals[1] - vertex_normals[0]) +
                           attr.barycentrics.y * (vertex_normals[2] - vertex_normals[0]);
-    float3x3 const tangent_frame = {normalize(tangent), normalize(bitangent), normalize(normal)};
+
+    float4x3 const model_matrix_4x3 = ObjectToWorld4x3();
+    float4x4 const model_matrix = {
+        float4(model_matrix_4x3[0], 0),
+        float4(model_matrix_4x3[1], 0),
+        float4(model_matrix_4x3[2], 0),
+        float4(model_matrix_4x3[3], 1),
+    };
+    float4x3 const inv_model_matrix_4x3 = WorldToObject4x3();
+    float4x4 const inv_model_matrix = {
+        float4(inv_model_matrix_4x3[0], 0),
+        float4(inv_model_matrix_4x3[1], 0),
+        float4(inv_model_matrix_4x3[2], 0),
+        float4(inv_model_matrix_4x3[3], 1),
+    };
+    float4x4 const model_matrix_it = transpose(inv_model_matrix);
+    float3x3 const tangent_frame = {
+        normalize(mul(normalize(tangent), (float3x3)model_matrix)),
+        normalize(mul(normalize(bitangent), (float3x3)model_matrix)),
+        normalize(mul(normalize(normal), (float3x3)model_matrix_it)),
+    };
 
     float2 const vertex_tex_coords[] = {
         vertex_buffer[indices[0]].tex_coord, vertex_buffer[indices[1]].tex_coord, vertex_buffer[indices[2]].tex_coord};

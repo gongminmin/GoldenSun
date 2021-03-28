@@ -319,8 +319,8 @@ TEST_F(RayCastingTest, Mesh)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
     {
-        XMFLOAT3 const light_pos = {2.0f, 2.0f, 0.0f};
-        XMFLOAT3 const light_color = {10.0f, 12.0f, 10.0f};
+        XMFLOAT3 const light_pos = {2.0f, 0.0f, -2.0f};
+        XMFLOAT3 const light_color = {20.0f, 24.0f, 20.0f};
         XMFLOAT3 const light_falloff = {1, 0, 1};
 
         golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
@@ -369,8 +369,8 @@ TEST_F(RayCastingTest, MeshShadowed)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
     {
-        XMFLOAT3 const light_pos = {2.0f, 2.0f, 0.0f};
-        XMFLOAT3 const light_color = {10.0f, 12.0f, 10.0f};
+        XMFLOAT3 const light_pos = {2.0f, 0.0f, -2.0f};
+        XMFLOAT3 const light_color = {20.0f, 24.0f, 20.0f};
         XMFLOAT3 const light_falloff = {1, 0, 1};
 
         golden_sun_engine_->Light(light_pos, light_color, light_falloff, true);
