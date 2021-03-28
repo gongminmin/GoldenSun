@@ -245,7 +245,7 @@ bool TraceShadowRay(Ray ray, uint curr_ray_recursion_depth)
     RayDesc ray_desc;
     ray_desc.Origin = ray.origin;
     ray_desc.Direction = ray.direction;
-    ray_desc.TMin = 0.1f;
+    ray_desc.TMin = 0.001f;
     ray_desc.TMax = 10000.0f;
 
     ShadowRayPayload payload = {true};

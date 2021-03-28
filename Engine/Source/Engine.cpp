@@ -603,14 +603,8 @@ namespace
         {
             PrimitiveConstantBuffer cb;
 
-            D3D12_GPU_DESCRIPTOR_HANDLE vb_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE ib_gpu_handle;
-
-            D3D12_GPU_DESCRIPTOR_HANDLE albedo_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE metallic_glossiness_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE emissive_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE normal_gpu_handle;
-            D3D12_GPU_DESCRIPTOR_HANDLE occlusion_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE buffer_gpu_handle;
+            D3D12_GPU_DESCRIPTOR_HANDLE texture_gpu_handle;
         };
     };
 } // namespace
@@ -674,62 +668,125 @@ namespace GoldenSun
 
         void Geometries(Mesh const* meshes, uint32_t num_meshes)
         {
-            uint32_t num_buffers;
-            uint32_t num_materials;
+            uint32_t num_primitives = 0;
+            uint32_t num_materials = 0;
+            for (uint32_t i = 0; i < num_meshes; ++i)
             {
-                buffer_start_indices_.assign(1, 0);
-                material_start_indices_.assign(1, 0);
-                for (uint32_t i = 0; i < num_meshes; ++i)
-                {
-                    buffer_start_indices_.push_back(buffer_start_indices_.back() + meshes[i].NumPrimitives() * 2);
-                    material_start_indices_.push_back(material_start_indices_.back() + meshes[i].NumMaterials());
-                }
-
-                num_buffers = buffer_start_indices_.back();
-                num_materials = material_start_indices_.back();
+                num_primitives += meshes[i].NumPrimitives();
+                num_materials += meshes[i].NumMaterials();
             }
 
-            gpu_system_.ReallocCbvSrvUavDescBlock(buffer_desc_block_, 1 + num_buffers * 2);
+            gpu_system_.ReallocCbvSrvUavDescBlock(
+                frame_desc_block_, 1 + num_primitives * 2 + num_materials * ConvertToUint(PbrMaterial::TextureSlot::Num));
 
             {
-                material_buffer_ = StructuredBuffer<PbrMaterial::Buffer>(gpu_system_, num_materials, 1, L"Material Buffer");
-                for (uint32_t i = 0; i < num_meshes; ++i)
-                {
-                    for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
-                    {
-                        material_buffer_[material_start_indices_[i] + j] = meshes[i].Material(j).buffer;
-                    }
-                }
-                material_buffer_.UploadToGpu();
+                buffer_gpu_handles_.clear();
+                buffer_gpu_handles_.reserve(num_primitives);
 
-                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), num_materials, sizeof(PbrMaterial::Buffer),
-                    OffsetHandle(buffer_desc_block_.CpuHandle(), 0, descriptor_size_));
-
-                gpu_system_.ReallocCbvSrvUavDescBlock(material_tex_desc_block_, ConvertToUint(PbrMaterial::TextureSlot::Num));
-            }
-
-            {
+                uint32_t buffer_desc_start = 1;
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
                     {
-                        auto [vb_cpu_handle, vb_gpu_handle] = OffsetHandle(buffer_desc_block_.CpuHandle(), buffer_desc_block_.GpuHandle(),
-                            1 + buffer_start_indices_[i] + j * 2 + 0, descriptor_size_);
+                        auto [vb_cpu_handle, vb_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), buffer_desc_start + 0, descriptor_size_);
                         GpuBuffer vb(meshes[i].VertexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
                         gpu_system_.CreateShaderResourceView(vb, meshes[i].NumVertices(j), meshes[i].VertexStrideInBytes(), vb_cpu_handle);
+                        buffer_gpu_handles_.emplace_back(std::move(vb_gpu_handle));
 
-                        auto [ib_cpu_handle, ib_gpu_handle] = OffsetHandle(buffer_desc_block_.CpuHandle(), buffer_desc_block_.GpuHandle(),
-                            1 + buffer_start_indices_[i] + j * 2 + 1, descriptor_size_);
+                        auto [ib_cpu_handle, ib_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), buffer_desc_start + 1, descriptor_size_);
                         GpuBuffer ib(meshes[i].IndexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
                         gpu_system_.CreateShaderResourceView(
                             ib, meshes[i].NumIndices(j) * meshes[i].IndexStrideInBytes() / 4, 0, ib_cpu_handle);
+
+                        buffer_desc_start += 2;
                     }
 
                     bool update_on_build = false;
                     acceleration_structure_->AddBottomLevelAS(gpu_system_, build_flags, meshes[i], update_on_build, update_on_build);
                 }
+            }
+
+            {
+                material_tex_gpu_handles_.clear();
+                material_tex_gpu_handles_.reserve(num_materials);
+
+                uint32_t material_tex_desc_start = 1 + num_primitives * 2;
+
+                uint32_t material_id = 0;
+                material_buffer_ = StructuredBuffer<PbrMaterial::Buffer>(gpu_system_, num_materials, 1, L"Material Buffer");
+                for (uint32_t i = 0; i < num_meshes; ++i)
+                {
+                    for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
+                    {
+                        auto const& material = meshes[i].Material(j);
+
+                        material_buffer_[material_id] = material.buffer;
+                        ++material_id;
+
+                        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> textures;
+                        for (uint32_t t = 0; t < ConvertToUint(PbrMaterial::TextureSlot::Num); ++t)
+                        {
+                            textures[t] = GpuTexture2D(material.textures[t].Get(), D3D12_RESOURCE_STATE_GENERIC_READ);
+                        }
+
+                        auto* albedo_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
+                        if (!*albedo_tex)
+                        {
+                            albedo_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
+                        }
+                        auto* metallic_glossiness_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
+                        if (!*metallic_glossiness_tex)
+                        {
+                            metallic_glossiness_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
+                        }
+                        auto* emissive_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
+                        if (!*emissive_tex)
+                        {
+                            emissive_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
+                        }
+                        auto* normal_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
+                        if (!*normal_tex)
+                        {
+                            normal_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
+                        }
+                        auto* occlusion_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
+                        if (!*occlusion_tex)
+                        {
+                            occlusion_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
+                        }
+
+                        auto [albedo_cpu_handle, albedo_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 0, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(*albedo_tex, albedo_cpu_handle);
+                        material_tex_gpu_handles_.emplace_back(std::move(albedo_gpu_handle));
+
+                        auto [metallic_glossiness_cpu_handle, metallic_glossiness_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 1, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(*metallic_glossiness_tex, metallic_glossiness_cpu_handle);
+
+                        auto [emissive_cpu_handle, emissive_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 2, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(*emissive_tex, emissive_cpu_handle);
+
+                        auto [normal_cpu_handle, normal_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 3, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(*normal_tex, normal_cpu_handle);
+
+                        auto [occlusion_cpu_handle, occlusion_gpu_handle] = OffsetHandle(
+                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 4, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
+
+                        material_tex_desc_start += ConvertToUint(PbrMaterial::TextureSlot::Num);
+                    }
+                }
+                material_buffer_.UploadToGpu();
+
+                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), num_materials, sizeof(PbrMaterial::Buffer),
+                    OffsetHandle(frame_desc_block_.CpuHandle(), 0, descriptor_size_));
             }
 
             this->BuildShaderTables(meshes, num_meshes);
@@ -799,14 +856,14 @@ namespace GoldenSun
                     ConvertToUint(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
             }
 
-            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(material_tex_desc_block_.NativeDescriptorHeap())};
+            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(frame_desc_block_.NativeDescriptorHeap())};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             d3d12_cmd_list->SetComputeRootDescriptorTable(
                 ConvertToUint(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
             d3d12_cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_->TopLevelASBuffer().GpuVirtualAddress());
             d3d12_cmd_list->SetComputeRootDescriptorTable(ConvertToUint(GlobalRootSignature::Slot::MaterialBuffers),
-                OffsetHandle(buffer_desc_block_.GpuHandle(), 0, descriptor_size_));
+                OffsetHandle(frame_desc_block_.GpuHandle(), 0, descriptor_size_));
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
@@ -903,24 +960,16 @@ namespace GoldenSun
 
             {
                 D3D12_DESCRIPTOR_RANGE const ranges[] = {
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // VB
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // IB
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // albedo
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // metallic glossiness
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // emissive
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // normal
-                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // occlusion
+                    // VB and IB
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
+                    // albedo, metallic glossiness, emissive, normal, and occlusion
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 2, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
                 };
 
                 D3D12_ROOT_PARAMETER const root_params[] = {
                     CreateRootParameterAsConstants(Align<sizeof(uint32_t)>(sizeof(PrimitiveConstantBuffer)) / sizeof(uint32_t), 0, 1),
                     CreateRootParameterAsDescriptorTable(&ranges[0], 1),
                     CreateRootParameterAsDescriptorTable(&ranges[1], 1),
-                    CreateRootParameterAsDescriptorTable(&ranges[2], 1),
-                    CreateRootParameterAsDescriptorTable(&ranges[3], 1),
-                    CreateRootParameterAsDescriptorTable(&ranges[4], 1),
-                    CreateRootParameterAsDescriptorTable(&ranges[5], 1),
-                    CreateRootParameterAsDescriptorTable(&ranges[6], 1),
                 };
 
                 D3D12_ROOT_SIGNATURE_DESC const local_root_signature_desc = {
@@ -1035,6 +1084,9 @@ namespace GoldenSun
                 uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
                 ShaderTable hit_group_shader_table(gpu_system_, num_shader_records, shader_record_size, L"HitGroupShaderTable");
 
+                uint32_t buffer_desc_start = 0;
+                uint32_t material_tex_desc_start = 0;
+                uint32_t material_id = 0;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     auto& geometry = acceleration_structure_->BottomLevelAS(i);
@@ -1044,77 +1096,21 @@ namespace GoldenSun
                     for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
                     {
                         LocalRootSignature::RootArguments root_arguments;
-                        root_arguments.cb.material_id = material_start_indices_[i] + meshes[i].MaterialId(j);
-                        root_arguments.vb_gpu_handle =
-                            OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + buffer_start_indices_[i] + j * 2 + 0, descriptor_size_);
-                        root_arguments.ib_gpu_handle =
-                            OffsetHandle(buffer_desc_block_.GpuHandle(), 1 + buffer_start_indices_[i] + j * 2 + 1, descriptor_size_);
-
-                        auto const& material = meshes[i].Material(meshes[i].MaterialId(j));
-
-                        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> textures;
-                        for (uint32_t t = 0; t < ConvertToUint(PbrMaterial::TextureSlot::Num); ++t)
-                        {
-                            textures[t] = GpuTexture2D(material.textures[t].Get(), D3D12_RESOURCE_STATE_GENERIC_READ);
-                        }
-
-                        auto* albedo_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
-                        if (!*albedo_tex)
-                        {
-                            albedo_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
-                        }
-                        auto* metallic_glossiness_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
-                        if (!*metallic_glossiness_tex)
-                        {
-                            metallic_glossiness_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
-                        }
-                        auto* emissive_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
-                        if (!*emissive_tex)
-                        {
-                            emissive_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
-                        }
-                        auto* normal_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
-                        if (!*normal_tex)
-                        {
-                            normal_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
-                        }
-                        auto* occlusion_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
-                        if (!*occlusion_tex)
-                        {
-                            occlusion_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
-                        }
-
-                        auto [albedo_cpu_handle, albedo_gpu_handle] =
-                            OffsetHandle(material_tex_desc_block_.CpuHandle(), material_tex_desc_block_.GpuHandle(), 0, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*albedo_tex, albedo_cpu_handle);
-                        root_arguments.albedo_gpu_handle = albedo_gpu_handle;
-
-                        auto [metallic_glossiness_cpu_handle, metallic_glossiness_gpu_handle] =
-                            OffsetHandle(material_tex_desc_block_.CpuHandle(), material_tex_desc_block_.GpuHandle(), 1, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*metallic_glossiness_tex, metallic_glossiness_cpu_handle);
-                        root_arguments.metallic_glossiness_gpu_handle = metallic_glossiness_gpu_handle;
-
-                        auto [emissive_cpu_handle, emissive_gpu_handle] =
-                            OffsetHandle(material_tex_desc_block_.CpuHandle(), material_tex_desc_block_.GpuHandle(), 2, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*emissive_tex, emissive_cpu_handle);
-                        root_arguments.emissive_gpu_handle = emissive_gpu_handle;
-
-                        auto [normal_cpu_handle, normal_gpu_handle] =
-                            OffsetHandle(material_tex_desc_block_.CpuHandle(), material_tex_desc_block_.GpuHandle(), 3, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*normal_tex, normal_cpu_handle);
-                        root_arguments.normal_gpu_handle = normal_gpu_handle;
-
-                        auto [occlusion_cpu_handle, occlusion_gpu_handle] =
-                            OffsetHandle(material_tex_desc_block_.CpuHandle(), material_tex_desc_block_.GpuHandle(), 4, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
-                        root_arguments.occlusion_gpu_handle = occlusion_gpu_handle;
+                        root_arguments.cb.material_id = material_id + meshes[i].MaterialId(j);
+                        root_arguments.buffer_gpu_handle = buffer_gpu_handles_[buffer_desc_start];
+                        root_arguments.texture_gpu_handle = material_tex_gpu_handles_[material_tex_desc_start];
 
                         for (auto& hit_group_shader_identifier : hit_group_shader_identifiers)
                         {
                             hit_group_shader_table.push_back(
                                 ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
                         }
+
+                        ++buffer_desc_start;
+                        ++material_tex_desc_start;
                     }
+
+                    material_id += meshes[i].NumMaterials();
                 }
 
                 hit_group_shader_table_stride_ = hit_group_shader_table.ShaderRecordSize();
@@ -1138,11 +1134,10 @@ namespace GoldenSun
 
         uint32_t descriptor_size_;
 
-        GpuDescriptorBlock buffer_desc_block_;
-        GpuDescriptorBlock material_tex_desc_block_;
+        GpuDescriptorBlock frame_desc_block_;
 
-        std::vector<uint32_t> buffer_start_indices_;
-        std::vector<uint32_t> material_start_indices_;
+        std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> buffer_gpu_handles_;
+        std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> material_tex_gpu_handles_;
 
         StructuredBuffer<PbrMaterial::Buffer> material_buffer_;
         std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> default_textures_;
