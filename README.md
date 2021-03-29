@@ -1,9 +1,11 @@
 # GoldenSun
 
+[![Build Status](https://gongminmin.visualstudio.com/GoldenSun/_apis/build/status/gongminmin.GoldenSun?branchName=main)](https://gongminmin.visualstudio.com/GoldenSun/_build/latest?definitionId=4&branchName=main)
+
 GoldenSun is a GPU path tracer. It uses hardware ray tracing APIs to do the tracing. As an experimental project, there is no release plan, nor related to any product.
 
 ## Getting started
-[TODO]
+Before compiling GoldenSun, Python 3.x+ and CMake 3.18+ must be installed first. Then you can run Build.py to build the whole code base. Currently only VS2019 on Windows is supported. More compilers and OSs will be supported in the future.
 
 ## Principles
 * Keep the algorithm simple
