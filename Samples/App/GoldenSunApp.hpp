@@ -81,9 +81,7 @@ namespace GoldenSun
         float near_plane_;
         float far_plane_;
 
-        DirectX::XMFLOAT3 light_pos_;
-        DirectX::XMFLOAT3 light_color_;
-        DirectX::XMFLOAT3 light_falloff_;
+        Light light_;
 
         std::unique_ptr<Engine> golden_sun_engine_;
     };

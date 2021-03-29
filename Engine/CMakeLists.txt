@@ -9,6 +9,7 @@ set(source_files
 set(header_files
     Include/GoldenSun/Engine.hpp
     Include/GoldenSun/GoldenSun.hpp
+    Include/GoldenSun/Light.hpp
     Include/GoldenSun/Mesh.hpp
 )
 

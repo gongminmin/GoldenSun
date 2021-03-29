@@ -42,13 +42,13 @@ TEST_F(RayCastingTest, SingleObject)
 
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
-    {
-        XMFLOAT3 const light_pos = {-2.0f, 1.8f, -3.0f};
-        XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
-        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
-    }
+    Light light;
+    light.buffer.position = {-2.0f, 1.8f, -3.0f};
+    light.buffer.color = {1.0f, 0.8f, 0.0f};
+    light.buffer.falloff = {1, 0, 0};
+    light.buffer.shadowing = false;
+    golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -116,13 +116,13 @@ TEST_F(RayCastingTest, MultipleObjects)
 
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
-    {
-        XMFLOAT3 const light_pos = {2.0f, 1.8f, -3.0f};
-        XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
-        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
-    }
+    Light light{};
+    light.buffer.position = {2.0f, 1.8f, -3.0f};
+    light.buffer.color = {1.0f, 0.8f, 0.0f};
+    light.buffer.falloff = {1, 0, 0};
+    light.buffer.shadowing = false;
+    golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -214,13 +214,13 @@ TEST_F(RayCastingTest, Instancing)
 
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
-    {
-        XMFLOAT3 const light_pos = {2.0f, 1.8f, -3.0f};
-        XMFLOAT3 const light_color = {1.0f, 0.8f, 0.0f};
-        XMFLOAT3 const light_falloff = {1, 0, 0};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
-    }
+    Light light{};
+    light.buffer.position = {2.0f, 1.8f, -3.0f};
+    light.buffer.color = {1.0f, 0.8f, 0.0f};
+    light.buffer.falloff = {1, 0, 0};
+    light.buffer.shadowing = false;
+    golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -318,13 +318,13 @@ TEST_F(RayCastingTest, Mesh)
 
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
-    {
-        XMFLOAT3 const light_pos = {2.0f, 0.0f, -2.0f};
-        XMFLOAT3 const light_color = {20.0f, 24.0f, 20.0f};
-        XMFLOAT3 const light_falloff = {1, 0, 1};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff, false);
-    }
+    Light light{};
+    light.buffer.position = {2.0f, 0.0f, -2.0f};
+    light.buffer.color = {20.0f, 24.0f, 20.0f};
+    light.buffer.falloff = {1, 0, 1};
+    light.buffer.shadowing = false;
+    golden_sun_engine_->Lights(&light, 1);
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)
@@ -368,13 +368,22 @@ TEST_F(RayCastingTest, MeshShadowed)
 
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
-    {
-        XMFLOAT3 const light_pos = {2.0f, 0.0f, -2.0f};
-        XMFLOAT3 const light_color = {20.0f, 24.0f, 20.0f};
-        XMFLOAT3 const light_falloff = {1, 0, 1};
 
-        golden_sun_engine_->Light(light_pos, light_color, light_falloff, true);
+    std::vector<Light> lights;
+    {
+        auto& light0 = lights.emplace_back();
+        light0.buffer.position = {2.0f, 0.0f, -2.0f};
+        light0.buffer.color = {20.0f, 24.0f, 20.0f};
+        light0.buffer.falloff = {1, 0, 1};
+        light0.buffer.shadowing = true;
+
+        auto& light1 = lights.emplace_back();
+        light1.buffer.position = {-2.0f, 1.8f, -3.0f};
+        light1.buffer.color = {20.0f, 6.0f, 6.0f};
+        light1.buffer.falloff = {1, 0, 1};
+        light1.buffer.shadowing = false;
     }
+    golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)

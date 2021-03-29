@@ -6,8 +6,6 @@
 #include <DirectXMath.h>
 #include <dxgiformat.h>
 
-struct ID3D12CommandQueue;
-struct ID3D12GraphicsCommandList4;
 struct ID3D12Resource;
 
 namespace GoldenSun

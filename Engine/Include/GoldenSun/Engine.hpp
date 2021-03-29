@@ -7,6 +7,7 @@
 #include <dxgiformat.h>
 
 #include <GoldenSun/Base.hpp>
+#include <GoldenSun/Light.hpp>
 #include <GoldenSun/Mesh.hpp>
 
 struct ID3D12CommandQueue;
@@ -30,7 +31,7 @@ namespace GoldenSun
         void Geometries(Mesh const* meshes, uint32_t num_meshes);
         void Camera(DirectX::XMFLOAT3 const& eye, DirectX::XMFLOAT3 const& look_at, DirectX::XMFLOAT3 const& up, float fov,
             float near_plane, float far_plane);
-        void Light(DirectX::XMFLOAT3 const& pos, DirectX::XMFLOAT3 const& color, DirectX::XMFLOAT3 const& falloff, bool shadowing);
+        void Lights(Light const* lights, uint32_t num_lights);
 
         void Render(ID3D12GraphicsCommandList4* cmd_list);
 

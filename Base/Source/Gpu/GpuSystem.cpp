@@ -254,10 +254,11 @@ namespace GoldenSun
             return GpuSystemInternalD3D12::CreateDescriptorHeap(device_.Get(), size, type, flags, std::move(name));
         }
 
-        GpuShaderResourceView CreateShaderResourceView(
-            GpuBuffer const& buffer, uint32_t num_elements, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
+        GpuShaderResourceView CreateShaderResourceView(GpuBuffer const& buffer, uint32_t first_element, uint32_t num_elements,
+            uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
         {
-            return GpuSystemInternalD3D12::CreateShaderResourceView(device_.Get(), buffer, num_elements, element_size, cpu_handle);
+            return GpuSystemInternalD3D12::CreateShaderResourceView(
+                device_.Get(), buffer, first_element, num_elements, element_size, cpu_handle);
         }
 
         GpuShaderResourceView CreateShaderResourceView(
@@ -606,10 +607,10 @@ namespace GoldenSun
         return impl_->CreateDescriptorHeap(size, type, flags, std::move(name));
     }
 
-    GpuShaderResourceView GpuSystem::CreateShaderResourceView(
-        GpuBuffer const& buffer, uint32_t num_elements, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
+    GpuShaderResourceView GpuSystem::CreateShaderResourceView(GpuBuffer const& buffer, uint32_t first_element, uint32_t num_elements,
+        uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
     {
-        return impl_->CreateShaderResourceView(buffer, num_elements, element_size, cpu_handle);
+        return impl_->CreateShaderResourceView(buffer, first_element, num_elements, element_size, cpu_handle);
     }
 
     GpuShaderResourceView GpuSystem::CreateShaderResourceView(

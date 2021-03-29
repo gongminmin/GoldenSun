@@ -559,11 +559,6 @@ namespace
     {
         XMFLOAT4X4 inv_view_proj;
         XMFLOAT4 camera_pos;
-
-        XMFLOAT4 light_pos;
-        XMFLOAT4 light_color;
-        XMFLOAT4 light_falloff;
-        uint32_t light_shadowing;
     };
 
     struct PrimitiveConstantBuffer
@@ -579,7 +574,8 @@ namespace
             OutputView = 0,
             AccelerationStructure,
             SceneConstant,
-            MaterialBuffers,
+            MaterialBuffer,
+            LightBuffer,
             Count
         };
     };
@@ -590,12 +586,7 @@ namespace
         {
             PrimitiveConstant = 0,
             VertexBuffer,
-            IndexBuffer,
             AlbedoTex,
-            MetallicGlossinessTex,
-            EmissiveTex,
-            NormalTex,
-            OcclusionTex,
             Count
         };
 
@@ -668,6 +659,9 @@ namespace GoldenSun
 
         void Geometries(Mesh const* meshes, uint32_t num_meshes)
         {
+            meshes_ = meshes;
+            num_meshes_ = num_meshes;
+
             uint32_t num_primitives = 0;
             uint32_t num_materials = 0;
             for (uint32_t i = 0; i < num_meshes; ++i)
@@ -676,8 +670,18 @@ namespace GoldenSun
                 num_materials += meshes[i].NumMaterials();
             }
 
+            // Material buffer, vb and ib, material textures
             gpu_system_.ReallocCbvSrvUavDescBlock(
-                frame_desc_block_, 1 + num_primitives * 2 + num_materials * ConvertToUint(PbrMaterial::TextureSlot::Num));
+                mesh_desc_block_, 1 + num_primitives * 2 + num_materials * ConvertToUint(PbrMaterial::TextureSlot::Num));
+
+            if ((num_lights_ != 0) && (mesh_desc_block_.NativeDescriptorHeap() != light_desc_block_.NativeDescriptorHeap()))
+            {
+                this->Lights(lights_, num_lights_);
+
+                ray_tracing_output_desc_block_ = gpu_system_.AllocCbvSrvUavDescBlock(1);
+                gpu_system_.CreateUnorderedAccessView(
+                    ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
+            }
 
             {
                 buffer_gpu_handles_.clear();
@@ -691,16 +695,17 @@ namespace GoldenSun
                     for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
                     {
                         auto [vb_cpu_handle, vb_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), buffer_desc_start + 0, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), buffer_desc_start + 0, descriptor_size_);
                         GpuBuffer vb(meshes[i].VertexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
-                        gpu_system_.CreateShaderResourceView(vb, meshes[i].NumVertices(j), meshes[i].VertexStrideInBytes(), vb_cpu_handle);
+                        gpu_system_.CreateShaderResourceView(
+                            vb, 0, meshes[i].NumVertices(j), meshes[i].VertexStrideInBytes(), vb_cpu_handle);
                         buffer_gpu_handles_.emplace_back(std::move(vb_gpu_handle));
 
                         auto [ib_cpu_handle, ib_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), buffer_desc_start + 1, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), buffer_desc_start + 1, descriptor_size_);
                         GpuBuffer ib(meshes[i].IndexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
                         gpu_system_.CreateShaderResourceView(
-                            ib, meshes[i].NumIndices(j) * meshes[i].IndexStrideInBytes() / 4, 0, ib_cpu_handle);
+                            ib, 0, meshes[i].NumIndices(j) * meshes[i].IndexStrideInBytes() / 4, 0, ib_cpu_handle);
 
                         buffer_desc_start += 2;
                     }
@@ -760,24 +765,24 @@ namespace GoldenSun
                         }
 
                         auto [albedo_cpu_handle, albedo_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 0, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 0, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*albedo_tex, albedo_cpu_handle);
                         material_tex_gpu_handles_.emplace_back(std::move(albedo_gpu_handle));
 
                         auto [metallic_glossiness_cpu_handle, metallic_glossiness_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 1, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 1, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*metallic_glossiness_tex, metallic_glossiness_cpu_handle);
 
                         auto [emissive_cpu_handle, emissive_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 2, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 2, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*emissive_tex, emissive_cpu_handle);
 
                         auto [normal_cpu_handle, normal_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 3, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 3, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*normal_tex, normal_cpu_handle);
 
                         auto [occlusion_cpu_handle, occlusion_gpu_handle] = OffsetHandle(
-                            frame_desc_block_.CpuHandle(), frame_desc_block_.GpuHandle(), material_tex_desc_start + 4, descriptor_size_);
+                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 4, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
 
                         material_tex_desc_start += ConvertToUint(PbrMaterial::TextureSlot::Num);
@@ -785,8 +790,8 @@ namespace GoldenSun
                 }
                 material_buffer_.UploadToGpu();
 
-                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), num_materials, sizeof(PbrMaterial::Buffer),
-                    OffsetHandle(frame_desc_block_.CpuHandle(), 0, descriptor_size_));
+                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), 0, num_materials, sizeof(PbrMaterial::Buffer),
+                    OffsetHandle(mesh_desc_block_.CpuHandle(), 0, descriptor_size_));
             }
 
             this->BuildShaderTables(meshes, num_meshes);
@@ -820,12 +825,34 @@ namespace GoldenSun
             far_plane_ = far_plane;
         }
 
-        void Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff, bool shadowing)
+        void Lights(Light const* lights, uint32_t num_lights)
         {
-            light_pos_ = pos;
-            light_color_ = color;
-            light_falloff_ = falloff;
-            light_shadowing_ = shadowing;
+            lights_ = lights;
+            num_lights_ = num_lights;
+
+            gpu_system_.ReallocCbvSrvUavDescBlock(light_desc_block_, 1);
+
+            if ((num_meshes_ != 0) && (light_desc_block_.NativeDescriptorHeap() != mesh_desc_block_.NativeDescriptorHeap()))
+            {
+                this->Geometries(meshes_, num_meshes_);
+
+                ray_tracing_output_desc_block_ = gpu_system_.AllocCbvSrvUavDescBlock(1);
+                gpu_system_.CreateUnorderedAccessView(
+                    ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
+            }
+
+            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(Light::Buffer));
+            auto* light_mem = light_mem_block_.CpuAddress<Light::Buffer>();
+            for (uint32_t i = 0; i < num_lights; ++i)
+            {
+                light_mem[i] = lights[i].buffer;
+            }
+
+            assert(light_mem_block_.Offset() / sizeof(Light::Buffer) * sizeof(Light::Buffer) == light_mem_block_.Offset());
+            gpu_system_.CreateShaderResourceView(
+                GpuBuffer(reinterpret_cast<ID3D12Resource*>(light_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
+                light_mem_block_.Offset() / sizeof(Light::Buffer), num_lights, sizeof(Light::Buffer),
+                OffsetHandle(light_desc_block_.CpuHandle(), 0, descriptor_size_));
         }
 
         void Render(ID3D12GraphicsCommandList4* d3d12_cmd_list)
@@ -845,25 +872,22 @@ namespace GoldenSun
                 auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
                 XMStoreFloat4x4(&per_frame_constants_->inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
-                per_frame_constants_->light_pos = XMFLOAT4(light_pos_.x, light_pos_.y, light_pos_.z, 1);
-                per_frame_constants_->light_color = XMFLOAT4(light_color_.x, light_color_.y, light_color_.z, 1);
-                per_frame_constants_->light_falloff = XMFLOAT4(light_falloff_.x, light_falloff_.y, light_falloff_.z, 1);
-                per_frame_constants_->light_shadowing = light_shadowing_;
-
                 per_frame_constants_.UploadToGpu(frame_index);
 
                 d3d12_cmd_list->SetComputeRootConstantBufferView(
                     ConvertToUint(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
             }
 
-            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(frame_desc_block_.NativeDescriptorHeap())};
+            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(mesh_desc_block_.NativeDescriptorHeap())};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             d3d12_cmd_list->SetComputeRootDescriptorTable(
                 ConvertToUint(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
             d3d12_cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_->TopLevelASBuffer().GpuVirtualAddress());
-            d3d12_cmd_list->SetComputeRootDescriptorTable(ConvertToUint(GlobalRootSignature::Slot::MaterialBuffers),
-                OffsetHandle(frame_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(
+                ConvertToUint(GlobalRootSignature::Slot::MaterialBuffer), OffsetHandle(mesh_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(
+                ConvertToUint(GlobalRootSignature::Slot::LightBuffer), OffsetHandle(light_desc_block_.GpuHandle(), 0, descriptor_size_));
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
@@ -933,6 +957,7 @@ namespace GoldenSun
                 D3D12_DESCRIPTOR_RANGE const ranges[] = {
                     {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // Output
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // Material
+                    {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}, // Light
                 };
 
                 D3D12_ROOT_PARAMETER const root_params[] = {
@@ -940,6 +965,7 @@ namespace GoldenSun
                     CreateRootParameterAsShaderResourceView(0), // AccelerationStructure
                     CreateRootParameterAsConstantBufferView(0), // scene_cb
                     CreateRootParameterAsDescriptorTable(&ranges[1], 1),
+                    CreateRootParameterAsDescriptorTable(&ranges[2], 1),
                 };
 
                 D3D12_STATIC_SAMPLER_DESC sampler{};
@@ -1134,7 +1160,14 @@ namespace GoldenSun
 
         uint32_t descriptor_size_;
 
-        GpuDescriptorBlock frame_desc_block_;
+        // TODO: Find a better solution
+        Mesh const* meshes_ = nullptr;
+        uint32_t num_meshes_ = 0;
+        Light const* lights_ = nullptr;
+        uint32_t num_lights_ = 0;
+
+        GpuDescriptorBlock mesh_desc_block_;
+        GpuDescriptorBlock light_desc_block_;
 
         std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> buffer_gpu_handles_;
         std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> material_tex_gpu_handles_;
@@ -1172,10 +1205,7 @@ namespace GoldenSun
         float near_plane_;
         float far_plane_;
 
-        XMFLOAT3 light_pos_;
-        XMFLOAT3 light_color_;
-        XMFLOAT3 light_falloff_;
-        bool light_shadowing_;
+        GpuMemoryBlock light_mem_block_;
     };
 
     wchar_t const* Engine::Impl::c_ray_gen_shader_name = L"RayGenShader";
@@ -1224,9 +1254,9 @@ namespace GoldenSun
         return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    void Engine::Light(XMFLOAT3 const& pos, XMFLOAT3 const& color, XMFLOAT3 const& falloff, bool shadowing)
+    void Engine::Lights(Light const* lights, uint32_t num_lights)
     {
-        return impl_->Light(pos, color, falloff, shadowing);
+        return impl_->Lights(lights, num_lights);
     }
 
     void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)

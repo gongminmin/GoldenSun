@@ -100,11 +100,12 @@ namespace GoldenSun
             golden_sun_engine_->Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
         }
         {
-            light_pos_ = {0.0f, 1.8f, -3.0f};
-            light_color_ = {20.0f, 20.0f, 20.0f};
-            light_falloff_ = {1, 0, 1};
+            light_.buffer.position = {0.0f, 1.8f, -3.0f};
+            light_.buffer.color = {20.0f, 20.0f, 20.0f};
+            light_.buffer.falloff = {1, 0, 1};
+            light_.buffer.shadowing = true;
 
-            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_, true);
+            golden_sun_engine_->Lights(&light_, 1);
         }
 
         meshes_ = LoadMesh(gpu_system_, asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
@@ -138,11 +139,11 @@ namespace GoldenSun
             float const seconds_to_rotate_around = 8.0f;
             float const rotate = XMConvertToRadians(-360.0f * (frame_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationZ(rotate) * XMMatrixRotationY(rotate);
-            XMVECTOR light_pos = XMVector3Transform(XMLoadFloat3(&light_pos_), rotate_mat);
+            XMVECTOR light_pos = XMVector3Transform(XMLoadFloat3(&light_.buffer.position), rotate_mat);
 
-            XMStoreFloat3(&light_pos_, light_pos);
+            XMStoreFloat3(&light_.buffer.position, light_pos);
 
-            golden_sun_engine_->Light(light_pos_, light_color_, light_falloff_, true);
+            golden_sun_engine_->Lights(&light_, 1);
         }
 
         if (window_visible_)

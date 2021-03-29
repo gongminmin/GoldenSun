@@ -18,13 +18,14 @@ namespace GoldenSun
     public:
         Impl() noexcept = default;
 
-        Impl(ID3D12Device5* device, GpuBuffer const& buffer, uint32_t num_elements, uint32_t element_size,
+        Impl(ID3D12Device5* device, GpuBuffer const& buffer, uint32_t first_element, uint32_t num_elements, uint32_t element_size,
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
             : cpu_handle_(cpu_handle)
         {
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{};
             srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
             srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srv_desc.Buffer.FirstElement = first_element;
             srv_desc.Buffer.NumElements = num_elements;
             srv_desc.Buffer.StructureByteStride = element_size;
             if (element_size == 0)
@@ -194,10 +195,10 @@ namespace GoldenSun
 
 
     GpuShaderResourceView GpuSystemInternalD3D12::CreateShaderResourceView(ID3D12Device5* device, GpuBuffer const& buffer,
-        uint32_t num_elements, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
+        uint32_t first_element, uint32_t num_elements, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
     {
         GpuShaderResourceView srv;
-        srv.impl_ = ImplPtr<GpuShaderResourceView::Impl>(device, buffer, num_elements, element_size, cpu_handle);
+        srv.impl_ = ImplPtr<GpuShaderResourceView::Impl>(device, buffer, first_element, num_elements, element_size, cpu_handle);
         return srv;
     }
 

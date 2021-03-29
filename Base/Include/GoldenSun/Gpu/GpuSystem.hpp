@@ -58,8 +58,8 @@ namespace GoldenSun
         GpuDescriptorHeap CreateDescriptorHeap(
             uint32_t size, D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_DESCRIPTOR_HEAP_FLAGS flags, std::wstring_view name);
 
-        GpuShaderResourceView CreateShaderResourceView(
-            GpuBuffer const& buffer, uint32_t num_elements, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
+        GpuShaderResourceView CreateShaderResourceView(GpuBuffer const& buffer, uint32_t first_element, uint32_t num_elements,
+            uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
         GpuShaderResourceView CreateShaderResourceView(
             GpuTexture2D const& texture, DXGI_FORMAT format, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
         GpuShaderResourceView CreateShaderResourceView(GpuTexture2D const& texture, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);

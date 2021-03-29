@@ -37,11 +37,16 @@ struct SceneConstantBuffer
 {
     float4x4 inv_view_proj;
     float4 camera_pos;
+};
 
-    float4 light_pos;
-    float4 light_color;
-    float4 light_falloff;
-    bool light_shadowing;
+struct Light
+{
+    float3 position;
+    float3 color;
+    float3 falloff;
+    bool shadowing;
+    uint4 paddings0;
+    uint2 paddings1;
 };
 
 struct PbrMaterial
@@ -76,6 +81,7 @@ RWTexture2D<float4> render_target : register(u0, space0);
 
 ConstantBuffer<SceneConstantBuffer> scene_cb : register(b0, space0);
 StructuredBuffer<PbrMaterial> material_buffer : register(t1, space0);
+StructuredBuffer<Light> light_buffer : register(t2, space0);
 
 SamplerState linear_wrap_sampler : register(s0, space0);
 
@@ -150,51 +156,6 @@ float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
     float d2 = dot(v, v);
     float d = sqrt(d2);
     return 1 / dot(atten, float3(1, d, d2));
-}
-
-float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, bool in_shadow)
-{
-    PbrMaterial mtl = material_buffer[primitive_cb.material_id];
-
-    float const ambient_factor = 0.1f;
-
-    float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
-    float3 const albedo = mtl.albedo * albedo_data.xyz;
-    float const opacity = mtl.opacity * albedo_data.w;
-
-    float3 shading = 0;
-    if (!in_shadow)
-    {
-        float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
-        normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
-
-        float3 const light_dir = normalize(scene_cb.light_pos.xyz - position);
-        float3 const halfway = normalize(light_dir + normal);
-        float const n_dot_l = max(dot(light_dir, normal), 0);
-
-        float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
-
-        float const MAX_GLOSSINESS = 8192;
-        float const glossiness =
-            mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
-
-        float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
-
-        float const attenuation = (in_shadow ? 0 : 1) * AttenuationTerm(scene_cb.light_pos.xyz, position, scene_cb.light_falloff.xyz);
-
-        float3 const c_diff = DiffuseColor(albedo, metallic);
-        float3 const c_spec = SpecularColor(albedo, metallic);
-
-        float3 const diffuse = c_diff;
-        float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
-
-        shading = attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * scene_cb.light_color.rgb;
-    }
-
-    float3 const ambient = ambient_factor * albedo;
-    float3 const emissive = emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
-
-    return float4(ambient + emissive + shading, opacity);
 }
 
 struct RadianceRayPayload
@@ -280,17 +241,71 @@ float3 TransformQuat(float3 v, float4 quat)
     return v + cross(quat.xyz, cross(quat.xyz, v) + quat.w * v) * 2;
 }
 
+float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, uint recursion_depth)
+{
+    PbrMaterial mtl = material_buffer[primitive_cb.material_id];
+
+    float const ambient_factor = 0.1f;
+
+    float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
+    float3 const albedo = mtl.albedo * albedo_data.xyz;
+    float const opacity = mtl.opacity * albedo_data.w;
+
+    float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
+
+    float const MAX_GLOSSINESS = 8192;
+    float const glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
+
+    float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
+
+    float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
+    normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
+
+    float3 shading = 0;
+
+    uint num_lights;
+    uint light_stride;
+    light_buffer.GetDimensions(num_lights, light_stride);
+    for (uint i = 0; i < num_lights; ++i)
+    {
+        Light light = light_buffer[i];
+
+        float3 const light_dir = normalize(light.position - position);
+
+        bool in_shadow = false;
+        if (light.shadowing)
+        {
+            Ray const shadow_ray = {position, light_dir};
+            in_shadow = TraceShadowRay(shadow_ray, recursion_depth);
+        }
+
+        if (!in_shadow)
+        {
+            float3 const halfway = normalize(light_dir + normal);
+            float const n_dot_l = max(dot(light_dir, normal), 0);
+
+            float const attenuation = AttenuationTerm(light.position, position, light.falloff);
+
+            float3 const c_diff = DiffuseColor(albedo, metallic);
+            float3 const c_spec = SpecularColor(albedo, metallic);
+
+            float3 const diffuse = c_diff;
+            float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
+
+            shading += attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * light.color;
+        }
+    }
+
+    float3 const ambient = ambient_factor * albedo;
+    float3 const emissive = emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+
+    return float4(ambient + emissive + shading, opacity);
+}
+
 [shader("closesthit")]
 void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     float3 const hit_position = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-
-    bool in_shadow = false;
-    if (scene_cb.light_shadowing)
-    {
-        Ray const shadow_ray = {hit_position, normalize(scene_cb.light_pos.xyz - hit_position)};
-        in_shadow = TraceShadowRay(shadow_ray, payload.recursion_depth);
-    }
 
     uint const index_size = 2;
     uint const indices_per_triangle = 3;
@@ -348,7 +363,7 @@ void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleInters
     float2 const tex_coord = vertex_tex_coords[0] + attr.barycentrics.x * (vertex_tex_coords[1] - vertex_tex_coords[0]) +
                              attr.barycentrics.y * (vertex_tex_coords[2] - vertex_tex_coords[0]);
 
-    payload.color = CalcLighting(hit_position, tangent_frame, tex_coord, in_shadow);
+    payload.color = CalcLighting(hit_position, tangent_frame, tex_coord, payload.recursion_depth);
 }
 
 [shader("miss")]
