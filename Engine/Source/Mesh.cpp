@@ -124,6 +124,11 @@ namespace GoldenSun
             return instances_[instance_id].transform;
         }
 
+        void Transform(uint32_t instance_id, XMFLOAT4X4 const& transform) noexcept
+        {
+            instances_[instance_id].transform = transform;
+        }
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const
         {
             std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> ret;
@@ -296,6 +301,11 @@ namespace GoldenSun
     XMFLOAT4X4 const& Mesh::Transform(uint32_t instance_id) const noexcept
     {
         return impl_->Transform(instance_id);
+    }
+
+    void Mesh::Transform(uint32_t instance_id, XMFLOAT4X4 const& transform) noexcept
+    {
+        impl_->Transform(instance_id, transform);
     }
 
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> Mesh::GeometryDescs() const

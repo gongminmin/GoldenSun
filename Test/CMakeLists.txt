@@ -53,6 +53,6 @@ target_link_libraries(${exe_name}
         gtest
 )
 
-add_dependencies(${exe_name} CopyExpecteds)
+add_dependencies(${exe_name} CopyExpecteds CopyAssets)
 
 set_target_properties(${exe_name} PROPERTIES FOLDER "Test")

@@ -1,4 +1,4 @@
-static uint const MaxRayRecursionDepth = 2;
+static uint const MaxRayRecursionDepth = 3;
 
 // Ray types traced in this sample.
 namespace RayType
@@ -206,11 +206,11 @@ bool TraceShadowRay(Ray ray, uint curr_ray_recursion_depth)
     RayDesc ray_desc;
     ray_desc.Origin = ray.origin;
     ray_desc.Direction = ray.direction;
-    ray_desc.TMin = 0.001f;
+    ray_desc.TMin = 0.03f;
     ray_desc.TMax = 10000.0f;
 
     ShadowRayPayload payload = {true};
-    TraceRay(scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+    TraceRay(scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
         TraceRayParameters::InstanceMask, TraceRayParameters::HitGroup::Offset[RayType::Shadow],
         TraceRayParameters::HitGroup::GeometryStride, TraceRayParameters::MissShader::Offset[RayType::Shadow], ray_desc, payload);
 
@@ -299,7 +299,40 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
     float3 const ambient = ambient_factor * albedo;
     float3 const emissive = emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
 
-    return float4(ambient + emissive + shading, opacity);
+    float3 color = ambient + emissive + shading;
+    if (mtl.transparent && (opacity < 1.0f - 0.5f / 255.0f))
+    {
+        Ray const ray = {position, WorldRayDirection()};
+        color = lerp(TraceRadianceRay(ray, recursion_depth).xyz, color, opacity);
+    }
+
+    return float4(color, 1);
+}
+
+[shader("anyhit")]
+void AnyHitShader(inout RadianceRayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
+{
+    uint const index_size = 2;
+    uint const indices_per_triangle = 3;
+    uint const triangle_index_stride = indices_per_triangle * index_size;
+    uint const base_index = PrimitiveIndex() * triangle_index_stride;
+
+    uint3 const indices = Load3x16BitIndices(base_index);
+
+    float2 const vertex_tex_coords[] = {
+        vertex_buffer[indices[0]].tex_coord, vertex_buffer[indices[1]].tex_coord, vertex_buffer[indices[2]].tex_coord};
+    float2 const tex_coord = vertex_tex_coords[0] + attr.barycentrics.x * (vertex_tex_coords[1] - vertex_tex_coords[0]) +
+                             attr.barycentrics.y * (vertex_tex_coords[2] - vertex_tex_coords[0]);
+
+    PbrMaterial mtl = material_buffer[primitive_cb.material_id];
+
+    float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
+    float const opacity = mtl.opacity * albedo_data.w;
+
+    if (opacity < mtl.alpha_test)
+    {
+        IgnoreHit();
+    }
 }
 
 [shader("closesthit")]

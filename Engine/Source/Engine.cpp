@@ -29,7 +29,7 @@ DEFINE_UUID_OF(ID3D12StateObjectProperties);
 
 namespace
 {
-    static uint32_t constexpr MaxRayRecursionDepth = 2;
+    static uint32_t constexpr MaxRayRecursionDepth = 3;
 
     struct RadianceRayPayload
     {
@@ -1013,6 +1013,7 @@ namespace GoldenSun
             D3D12_SHADER_BYTECODE const lib_dxil = {static_cast<void const*>(RayTracing_shader), std::size(RayTracing_shader)};
             lib.SetDxilLibrary(&lib_dxil);
             lib.DefineExport(c_ray_gen_shader_name);
+            lib.DefineExport(c_any_hit_shader_name);
             lib.DefineExport(c_closest_hit_shader_name);
             for (auto const* miss_shader_name : c_miss_shader_names)
             {
@@ -1022,6 +1023,7 @@ namespace GoldenSun
             for (uint32_t ray_type = 0; ray_type < ConvertToUint(RayType::Count); ++ray_type)
             {
                 auto& hit_group = ray_tracing_pipeline.CreateSubobject<D3D12HitGroupSubobject>();
+                hit_group.SetAnyHitShaderImport(c_any_hit_shader_name);
                 if (ray_type == ConvertToUint(RayType::Radiance))
                 {
                     hit_group.SetClosestHitShaderImport(c_closest_hit_shader_name);
@@ -1189,6 +1191,7 @@ namespace GoldenSun
 
         static wchar_t const* c_ray_gen_shader_name;
         static wchar_t const* c_hit_group_names[ConvertToUint(RayType::Count)];
+        static wchar_t const* c_any_hit_shader_name;
         static wchar_t const* c_closest_hit_shader_name;
         static wchar_t const* c_miss_shader_names[ConvertToUint(RayType::Count)];
         GpuUploadBuffer ray_gen_shader_table_;
@@ -1210,6 +1213,7 @@ namespace GoldenSun
 
     wchar_t const* Engine::Impl::c_ray_gen_shader_name = L"RayGenShader";
     wchar_t const* Engine::Impl::c_hit_group_names[] = {L"HitGroupRadianceRay", L"HitGroupShadowRay"};
+    wchar_t const* Engine::Impl::c_any_hit_shader_name = L"AnyHitShader";
     wchar_t const* Engine::Impl::c_closest_hit_shader_name = L"ClosestHitShader";
     wchar_t const* Engine::Impl::c_miss_shader_names[] = {L"MissShaderRadianceRay", L"MissShaderShadowRay"};
 

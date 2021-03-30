@@ -93,6 +93,7 @@ namespace GoldenSun
         uint32_t AddInstance(DirectX::XMFLOAT4X4 const& transform);
         uint32_t NumInstances() const noexcept;
         DirectX::XMFLOAT4X4 const& Transform(uint32_t instance_id) const noexcept;
+        void Transform(uint32_t instance_id, DirectX::XMFLOAT4X4 const& transform) noexcept;
 
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const;
 

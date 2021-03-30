@@ -408,3 +408,58 @@ TEST_F(RayCastingTest, MeshShadowed)
 
     gpu_system.MoveToNextFrame();
 }
+
+TEST_F(RayCastingTest, Transparent)
+{
+    auto& test_env = TestEnv();
+    auto& gpu_system = test_env.GpuSystem();
+
+    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+
+    {
+        XMFLOAT3 const eye = {0.0f, 1.0f, -5.0f};
+        XMFLOAT3 const look_at = {0.0f, 0.5f, 0.0f};
+        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+
+        float const fov = XMConvertToRadians(45);
+        float const near_plane = 0.1f;
+        float far_plane = 20;
+
+        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+    }
+
+    std::vector<Light> lights;
+    {
+        auto& light0 = lights.emplace_back();
+        light0.buffer.position = {2.0f, 0.0f, -2.0f};
+        light0.buffer.color = {10.0f, 12.0f, 10.0f};
+        light0.buffer.falloff = {1, 0, 1};
+        light0.buffer.shadowing = true;
+
+        auto& light1 = lights.emplace_back();
+        light1.buffer.position = {-2.0f, 1.5f, -3.0f};
+        light1.buffer.color = {15.0f, 4.5f, 4.5f};
+        light1.buffer.falloff = {1, 0, 1};
+        light1.buffer.shadowing = true;
+    }
+    golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
+
+    auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "AlphaBlendModeTest/AlphaBlendModeTest.gltf");
+    for (auto& mesh : meshes)
+    {
+        XMFLOAT4X4 world;
+        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.6f, 0.6f, 0.6f));
+        mesh.Transform(0, world);
+    }
+    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+
+    auto cmd_list = gpu_system.CreateCommandList();
+    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+    golden_sun_engine_->Render(d3d12_cmd_list);
+    gpu_system.Execute(std::move(cmd_list));
+
+    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    test_env.CompareWithExpected("RayCastingTest/Transparent", actual_image);
+
+    gpu_system.MoveToNextFrame();
+}

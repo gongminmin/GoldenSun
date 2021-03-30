@@ -405,8 +405,18 @@ namespace
             auto ib = gpu_system.CreateUploadBuffer(
                 indices.data(), static_cast<uint32_t>(indices.size() * sizeof(indices[0])), (mesh_name_wide + L" Index Buffer").c_str());
 
+            D3D12_RAYTRACING_GEOMETRY_FLAGS flags;
+            if (materials[ai_mesh->mMaterialIndex].buffer.transparent || (materials[ai_mesh->mMaterialIndex].buffer.alpha_test > 0))
+            {
+                flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+            }
+            else
+            {
+                flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+            }
+
             new_mesh.AddPrimitive(
-                reinterpret_cast<ID3D12Resource*>(vb.NativeResource()), reinterpret_cast<ID3D12Resource*>(ib.NativeResource()), 0);
+                reinterpret_cast<ID3D12Resource*>(vb.NativeResource()), reinterpret_cast<ID3D12Resource*>(ib.NativeResource()), 0, flags);
         }
 
         return meshes;
