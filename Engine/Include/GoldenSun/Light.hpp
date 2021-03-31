@@ -1,27 +1,40 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include <DirectXMath.h>
-#include <dxgiformat.h>
 
 namespace GoldenSun
 {
-    struct Light
-    {
-        // Must match Light in shader
-        struct Buffer
-        {
-            alignas(4) DirectX::XMFLOAT3 position;
-            alignas(4) DirectX::XMFLOAT3 color;
-            alignas(4) DirectX::XMFLOAT3 falloff;
-            alignas(4) bool shadowing;
-            alignas(4) uint8_t paddings[24]{};
-        };
-        static_assert(sizeof(Buffer) % 16 == 0);
-        static_assert(sizeof(Buffer) % 64 == 0); // To align with GpuMemoryBlock, for now
+    class EngineInternal;
 
-        Buffer buffer;
+    class GOLDEN_SUN_API PointLight final
+    {
+        friend class EngineInternal;
+
+        DISALLOW_COPY_AND_ASSIGN(PointLight)
+
+    public:
+        PointLight();
+        ~PointLight() noexcept;
+
+        PointLight(PointLight&& other) noexcept;
+        PointLight& operator=(PointLight&& other) noexcept;
+
+        PointLight Clone() const;
+
+        void Position(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3 const& Position() const noexcept;
+
+        void Color(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3 const& Color() const noexcept;
+
+        void Falloff(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3 const& Falloff() const noexcept;
+
+        void Shadowing(bool value) noexcept;
+        bool Shadowing() const noexcept;
+
+    private:
+        class Impl;
+        Impl* impl_;
     };
 } // namespace GoldenSun

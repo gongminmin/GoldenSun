@@ -43,11 +43,11 @@ TEST_F(RayCastingTest, SingleObject)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    Light light;
-    light.buffer.position = {-2.0f, 1.8f, -3.0f};
-    light.buffer.color = {1.0f, 0.8f, 0.0f};
-    light.buffer.falloff = {1, 0, 0};
-    light.buffer.shadowing = false;
+    PointLight light;
+    light.Position({-2.0f, 1.8f, -3.0f});
+    light.Color({1.0f, 0.8f, 0.0f});
+    light.Falloff({1, 0, 0});
+    light.Shadowing(false);
     golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
@@ -66,7 +66,7 @@ TEST_F(RayCastingTest, SingleObject)
         3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
 
     PbrMaterial mtl;
-    mtl.buffer.albedo = {1.0f, 1.0f, 1.0f};
+    mtl.Albedo({1.0f, 1.0f, 1.0f});
 
     ComPtr<ID3D12Resource> vb = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer").NativeResource());
@@ -117,11 +117,11 @@ TEST_F(RayCastingTest, MultipleObjects)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    Light light{};
-    light.buffer.position = {2.0f, 1.8f, -3.0f};
-    light.buffer.color = {1.0f, 0.8f, 0.0f};
-    light.buffer.falloff = {1, 0, 0};
-    light.buffer.shadowing = false;
+    PointLight light;
+    light.Position({2.0f, 1.8f, -3.0f});
+    light.Color({1.0f, 0.8f, 0.0f});
+    light.Falloff({1, 0, 0});
+    light.Shadowing(false);
     golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
@@ -150,8 +150,8 @@ TEST_F(RayCastingTest, MultipleObjects)
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
     PbrMaterial mtls[2];
-    mtls[0].buffer.albedo = {1.0f, 1.0f, 1.0f};
-    mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
+    mtls[0].Albedo({1.0f, 1.0f, 1.0f});
+    mtls[1].Albedo({0.4f, 1.0f, 0.3f});
 
     ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
@@ -215,11 +215,11 @@ TEST_F(RayCastingTest, Instancing)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    Light light{};
-    light.buffer.position = {2.0f, 1.8f, -3.0f};
-    light.buffer.color = {1.0f, 0.8f, 0.0f};
-    light.buffer.falloff = {1, 0, 0};
-    light.buffer.shadowing = false;
+    PointLight light;
+    light.Position({2.0f, 1.8f, -3.0f});
+    light.Color({1.0f, 0.8f, 0.0f});
+    light.Falloff({1, 0, 0});
+    light.Shadowing(false);
     golden_sun_engine_->Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
@@ -248,9 +248,9 @@ TEST_F(RayCastingTest, Instancing)
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
     PbrMaterial mtls[3];
-    mtls[0].buffer.albedo = {1.0f, 1.0f, 1.0f};
-    mtls[1].buffer.albedo = {0.4f, 1.0f, 0.3f};
-    mtls[2].buffer.albedo = {0.8f, 0.4f, 0.6f};
+    mtls[0].Albedo({1.0f, 1.0f, 1.0f});
+    mtls[1].Albedo({0.4f, 1.0f, 0.3f});
+    mtls[2].Albedo({0.8f, 0.4f, 0.6f});
 
     ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
@@ -319,11 +319,11 @@ TEST_F(RayCastingTest, Mesh)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    Light light{};
-    light.buffer.position = {2.0f, 0.0f, -2.0f};
-    light.buffer.color = {20.0f, 24.0f, 20.0f};
-    light.buffer.falloff = {1, 0, 1};
-    light.buffer.shadowing = false;
+    PointLight light;
+    light.Position({2.0f, 0.0f, -2.0f});
+    light.Color({20.0f, 24.0f, 20.0f});
+    light.Falloff({1, 0, 1});
+    light.Shadowing(false);
     golden_sun_engine_->Lights(&light, 1);
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
@@ -369,19 +369,19 @@ TEST_F(RayCastingTest, MeshShadowed)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    std::vector<Light> lights;
+    std::vector<PointLight> lights;
     {
         auto& light0 = lights.emplace_back();
-        light0.buffer.position = {2.0f, 0.0f, -2.0f};
-        light0.buffer.color = {20.0f, 24.0f, 20.0f};
-        light0.buffer.falloff = {1, 0, 1};
-        light0.buffer.shadowing = true;
+        light0.Position({2.0f, 0.0f, -2.0f});
+        light0.Color({20.0f, 24.0f, 20.0f});
+        light0.Falloff({1, 0, 1});
+        light0.Shadowing(true);
 
         auto& light1 = lights.emplace_back();
-        light1.buffer.position = {-2.0f, 1.8f, -3.0f};
-        light1.buffer.color = {20.0f, 6.0f, 6.0f};
-        light1.buffer.falloff = {1, 0, 1};
-        light1.buffer.shadowing = false;
+        light1.Position({-2.0f, 1.8f, -3.0f});
+        light1.Color({20.0f, 6.0f, 6.0f});
+        light1.Falloff({1, 0, 1});
+        light1.Shadowing(false);
     }
     golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
@@ -428,19 +428,19 @@ TEST_F(RayCastingTest, Transparent)
         golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    std::vector<Light> lights;
+    std::vector<PointLight> lights;
     {
         auto& light0 = lights.emplace_back();
-        light0.buffer.position = {2.0f, 0.0f, -2.0f};
-        light0.buffer.color = {10.0f, 12.0f, 10.0f};
-        light0.buffer.falloff = {1, 0, 1};
-        light0.buffer.shadowing = true;
+        light0.Position({2.0f, 0.0f, -2.0f});
+        light0.Color({10.0f, 12.0f, 10.0f});
+        light0.Falloff({1, 0, 1});
+        light0.Shadowing(true);
 
         auto& light1 = lights.emplace_back();
-        light1.buffer.position = {-2.0f, 1.5f, -3.0f};
-        light1.buffer.color = {15.0f, 4.5f, 4.5f};
-        light1.buffer.falloff = {1, 0, 1};
-        light1.buffer.shadowing = true;
+        light1.Position({-2.0f, 1.5f, -3.0f});
+        light1.Color({15.0f, 4.5f, 4.5f});
+        light1.Falloff({1, 0, 1});
+        light1.Shadowing(true);
     }
     golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 

@@ -16,7 +16,7 @@ namespace GoldenSun
 {
     class GpuSystemInternalD3D12;
 
-    class GpuSystem
+    class GpuSystem final
     {
         DISALLOW_COPY_AND_ASSIGN(GpuSystem)
 

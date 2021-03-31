@@ -3,6 +3,8 @@ set(lib_name "GoldenSunEngine")
 set(source_files
     Source/AccelerationStructure.cpp
     Source/Engine.cpp
+    Source/Light.cpp
+    Source/Material.cpp
     Source/Mesh.cpp
 )
 
@@ -10,11 +12,13 @@ set(header_files
     Include/GoldenSun/Engine.hpp
     Include/GoldenSun/GoldenSun.hpp
     Include/GoldenSun/Light.hpp
+    Include/GoldenSun/Material.hpp
     Include/GoldenSun/Mesh.hpp
 )
 
 set(internal_header_files
     Source/AccelerationStructure.hpp
+    Source/EngineInternal.hpp
     Source/pch.hpp
 )
 

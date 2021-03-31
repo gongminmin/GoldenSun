@@ -3,6 +3,8 @@
 #include <string_view>
 #include <vector>
 
+#include <GoldenSun/Util.hpp>
+
 namespace GoldenSun
 {
     template <typename T>

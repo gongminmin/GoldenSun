@@ -1,6 +1,10 @@
 #include "pch.hpp"
 
-#include <GoldenSun/Engine.hpp>
+#include <GoldenSun/Mesh.hpp>
+
+#include <GoldenSun/Material.hpp>
+
+#include "EngineInternal.hpp"
 
 using namespace DirectX;
 
@@ -39,7 +43,7 @@ namespace GoldenSun
         uint32_t AddMaterial(PbrMaterial const& material)
         {
             uint32_t const material_id = static_cast<uint32_t>(materials_.size());
-            materials_.push_back(material);
+            materials_.emplace_back(material.Clone());
             return material_id;
         }
 
@@ -49,6 +53,11 @@ namespace GoldenSun
         }
 
         PbrMaterial const& Material(uint32_t material_id) const noexcept
+        {
+            return materials_[material_id];
+        }
+
+        PbrMaterial& Material(uint32_t material_id) noexcept
         {
             return materials_[material_id];
         }
@@ -248,6 +257,11 @@ namespace GoldenSun
         return impl_->Material(material_id);
     }
 
+    PbrMaterial& Mesh::Material(uint32_t material_id) noexcept
+    {
+        return impl_->Material(material_id);
+    }
+
     uint32_t Mesh::AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id)
     {
         return impl_->AddPrimitive(vb, ib, material_id, D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE);
@@ -308,8 +322,9 @@ namespace GoldenSun
         impl_->Transform(instance_id, transform);
     }
 
-    std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> Mesh::GeometryDescs() const
+
+    std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> EngineInternal::GeometryDescs(Mesh const& mesh)
     {
-        return impl_->GeometryDescs();
+        return mesh.impl_->GeometryDescs();
     }
 } // namespace GoldenSun

@@ -81,7 +81,7 @@ namespace GoldenSun
         float near_plane_;
         float far_plane_;
 
-        Light light_;
+        PointLight light_;
 
         std::unique_ptr<Engine> golden_sun_engine_;
     };

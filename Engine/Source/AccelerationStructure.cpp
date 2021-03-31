@@ -7,6 +7,7 @@
 #include <GoldenSun/GoldenSun.hpp>
 
 #include "AccelerationStructure.hpp"
+#include "EngineInternal.hpp"
 
 using namespace DirectX;
 using namespace GoldenSun;
@@ -70,7 +71,8 @@ namespace GoldenSun
     BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh, bool allow_update, bool update_on_build,
         std::wstring_view name)
-        : AccelerationStructure(build_flags, allow_update, update_on_build), gpu_system_(gpu_system), geometry_descs_(mesh.GeometryDescs())
+        : AccelerationStructure(build_flags, allow_update, update_on_build), gpu_system_(gpu_system),
+          geometry_descs_(EngineInternal::GeometryDescs(mesh))
     {
         this->CreateResource(gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL, geometry_descs_.data(),
             static_cast<uint32_t>(geometry_descs_.size()), std::move(name));

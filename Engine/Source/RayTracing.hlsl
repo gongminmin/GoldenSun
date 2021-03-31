@@ -56,7 +56,7 @@ struct PbrMaterial
     float3 emissive;
     float metallic;
     float glossiness;
-    float alpha_test;
+    float alpha_cutoff;
     float normal_scale;
     float occlusion_strength;
     bool transparent;
@@ -329,7 +329,7 @@ void AnyHitShader(inout RadianceRayPayload payload, in BuiltInTriangleIntersecti
     float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
     float const opacity = mtl.opacity * albedo_data.w;
 
-    if (opacity < mtl.alpha_test)
+    if (opacity < mtl.alpha_cutoff)
     {
         IgnoreHit();
     }

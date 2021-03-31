@@ -1,6 +1,9 @@
 #include "pch.hpp"
 
 #include <GoldenSun/Engine.hpp>
+
+#include <GoldenSun/Material.hpp>
+#include <GoldenSun/Mesh.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
 
@@ -17,6 +20,7 @@
 #include <DirectXMath.h>
 
 #include "AccelerationStructure.hpp"
+#include "EngineInternal.hpp"
 
 #include "CompiledShaders/RayTracing.h"
 
@@ -289,7 +293,7 @@ namespace
         }
 
         template <size_t N>
-        void AddExports(wchar_t const* (&exports)[N])
+        void AddExports(wchar_t const* const (&exports)[N])
         {
             for (size_t i = 0; i < N; i++)
             {
@@ -621,15 +625,15 @@ namespace GoldenSun
             this->CreateRayTracingPipelineStateObject();
 
             auto cmd_list = gpu_system_.CreateCommandList();
-            default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] =
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Albedo)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0xFFFFFFFFU);
-            default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] =
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0x00000000U);
-            default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] =
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Emissive)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0x00000000U);
-            default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)] =
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Normal)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0x00FF8080U);
-            default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] =
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Occlusion)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0xFFFFFFFFU);
             gpu_system_.Execute(std::move(cmd_list));
         }
@@ -672,7 +676,7 @@ namespace GoldenSun
 
             // Material buffer, vb and ib, material textures
             gpu_system_.ReallocCbvSrvUavDescBlock(
-                mesh_desc_block_, 1 + num_primitives * 2 + num_materials * ConvertToUint(PbrMaterial::TextureSlot::Num));
+                mesh_desc_block_, 1 + num_primitives * 2 + num_materials * std::to_underlying(PbrMaterial::TextureSlot::Num));
 
             if ((num_lights_ != 0) && (mesh_desc_block_.NativeDescriptorHeap() != light_desc_block_.NativeDescriptorHeap()))
             {
@@ -722,46 +726,47 @@ namespace GoldenSun
                 uint32_t material_tex_desc_start = 1 + num_primitives * 2;
 
                 uint32_t material_id = 0;
-                material_buffer_ = StructuredBuffer<PbrMaterial::Buffer>(gpu_system_, num_materials, 1, L"Material Buffer");
+                material_buffer_ = StructuredBuffer<PbrMaterialBuffer>(gpu_system_, num_materials, 1, L"Material Buffer");
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
                     for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
                     {
                         auto const& material = meshes[i].Material(j);
 
-                        material_buffer_[material_id] = material.buffer;
+                        material_buffer_[material_id] = EngineInternal::Buffer(material);
                         ++material_id;
 
-                        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> textures;
-                        for (uint32_t t = 0; t < ConvertToUint(PbrMaterial::TextureSlot::Num); ++t)
+                        std::array<GpuTexture2D, std::to_underlying(PbrMaterial::TextureSlot::Num)> textures;
+                        for (uint32_t t = 0; t < std::to_underlying(PbrMaterial::TextureSlot::Num); ++t)
                         {
-                            textures[t] = GpuTexture2D(material.textures[t].Get(), D3D12_RESOURCE_STATE_GENERIC_READ);
+                            textures[t] =
+                                GpuTexture2D(material.Texture(static_cast<PbrMaterial::TextureSlot>(t)), D3D12_RESOURCE_STATE_GENERIC_READ);
                         }
 
-                        auto* albedo_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
+                        auto* albedo_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Albedo)];
                         if (!*albedo_tex)
                         {
-                            albedo_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Albedo)];
+                            albedo_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Albedo)];
                         }
-                        auto* metallic_glossiness_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
+                        auto* metallic_glossiness_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)];
                         if (!*metallic_glossiness_tex)
                         {
-                            metallic_glossiness_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)];
+                            metallic_glossiness_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)];
                         }
-                        auto* emissive_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
+                        auto* emissive_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Emissive)];
                         if (!*emissive_tex)
                         {
-                            emissive_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Emissive)];
+                            emissive_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Emissive)];
                         }
-                        auto* normal_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
+                        auto* normal_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Normal)];
                         if (!*normal_tex)
                         {
-                            normal_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Normal)];
+                            normal_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Normal)];
                         }
-                        auto* occlusion_tex = &textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
+                        auto* occlusion_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Occlusion)];
                         if (!*occlusion_tex)
                         {
-                            occlusion_tex = &default_textures_[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)];
+                            occlusion_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Occlusion)];
                         }
 
                         auto [albedo_cpu_handle, albedo_gpu_handle] = OffsetHandle(
@@ -785,12 +790,12 @@ namespace GoldenSun
                             mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 4, descriptor_size_);
                         gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
 
-                        material_tex_desc_start += ConvertToUint(PbrMaterial::TextureSlot::Num);
+                        material_tex_desc_start += std::to_underlying(PbrMaterial::TextureSlot::Num);
                     }
                 }
                 material_buffer_.UploadToGpu();
 
-                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), 0, num_materials, sizeof(PbrMaterial::Buffer),
+                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), 0, num_materials, sizeof(PbrMaterialBuffer),
                     OffsetHandle(mesh_desc_block_.CpuHandle(), 0, descriptor_size_));
             }
 
@@ -825,7 +830,7 @@ namespace GoldenSun
             far_plane_ = far_plane;
         }
 
-        void Lights(Light const* lights, uint32_t num_lights)
+        void Lights(PointLight const* lights, uint32_t num_lights)
         {
             lights_ = lights;
             num_lights_ = num_lights;
@@ -841,17 +846,17 @@ namespace GoldenSun
                     ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
             }
 
-            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(Light::Buffer));
-            auto* light_mem = light_mem_block_.CpuAddress<Light::Buffer>();
+            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(LightBuffer));
+            auto* light_mem = light_mem_block_.CpuAddress<LightBuffer>();
             for (uint32_t i = 0; i < num_lights; ++i)
             {
-                light_mem[i] = lights[i].buffer;
+                light_mem[i] = EngineInternal::Buffer(lights[i]);
             }
 
-            assert(light_mem_block_.Offset() / sizeof(Light::Buffer) * sizeof(Light::Buffer) == light_mem_block_.Offset());
+            assert(light_mem_block_.Offset() / sizeof(LightBuffer) * sizeof(LightBuffer) == light_mem_block_.Offset());
             gpu_system_.CreateShaderResourceView(
                 GpuBuffer(reinterpret_cast<ID3D12Resource*>(light_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
-                light_mem_block_.Offset() / sizeof(Light::Buffer), num_lights, sizeof(Light::Buffer),
+                light_mem_block_.Offset() / sizeof(LightBuffer), num_lights, sizeof(LightBuffer),
                 OffsetHandle(light_desc_block_.CpuHandle(), 0, descriptor_size_));
         }
 
@@ -875,19 +880,19 @@ namespace GoldenSun
                 per_frame_constants_.UploadToGpu(frame_index);
 
                 d3d12_cmd_list->SetComputeRootConstantBufferView(
-                    ConvertToUint(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
+                    std::to_underlying(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
             }
 
             ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(mesh_desc_block_.NativeDescriptorHeap())};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             d3d12_cmd_list->SetComputeRootDescriptorTable(
-                ConvertToUint(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
-            d3d12_cmd_list->SetComputeRootShaderResourceView(ConvertToUint(GlobalRootSignature::Slot::AccelerationStructure),
+                std::to_underlying(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
+            d3d12_cmd_list->SetComputeRootShaderResourceView(std::to_underlying(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_->TopLevelASBuffer().GpuVirtualAddress());
-            d3d12_cmd_list->SetComputeRootDescriptorTable(
-                ConvertToUint(GlobalRootSignature::Slot::MaterialBuffer), OffsetHandle(mesh_desc_block_.GpuHandle(), 0, descriptor_size_));
-            d3d12_cmd_list->SetComputeRootDescriptorTable(
-                ConvertToUint(GlobalRootSignature::Slot::LightBuffer), OffsetHandle(light_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::MaterialBuffer),
+                OffsetHandle(mesh_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::LightBuffer),
+                OffsetHandle(light_desc_block_.GpuHandle(), 0, descriptor_size_));
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
@@ -1020,11 +1025,11 @@ namespace GoldenSun
                 lib.DefineExport(miss_shader_name);
             }
 
-            for (uint32_t ray_type = 0; ray_type < ConvertToUint(RayType::Count); ++ray_type)
+            for (uint32_t ray_type = 0; ray_type < std::to_underlying(RayType::Num); ++ray_type)
             {
                 auto& hit_group = ray_tracing_pipeline.CreateSubobject<D3D12HitGroupSubobject>();
                 hit_group.SetAnyHitShaderImport(c_any_hit_shader_name);
-                if (ray_type == ConvertToUint(RayType::Radiance))
+                if (ray_type == std::to_underlying(RayType::Radiance))
                 {
                     hit_group.SetClosestHitShaderImport(c_closest_hit_shader_name);
                 }
@@ -1064,17 +1069,17 @@ namespace GoldenSun
         void BuildShaderTables(Mesh const* meshes, uint32_t num_meshes)
         {
             void* ray_gen_shader_identifier;
-            void* hit_group_shader_identifiers[ConvertToUint(RayType::Count)];
-            void* miss_shader_identifiers[ConvertToUint(RayType::Count)];
+            void* hit_group_shader_identifiers[std::to_underlying(RayType::Num)];
+            void* miss_shader_identifiers[std::to_underlying(RayType::Num)];
             uint32_t shader_identifier_size;
             {
                 ComPtr<ID3D12StateObjectProperties> state_obj_properties = state_obj_.As<ID3D12StateObjectProperties>();
                 ray_gen_shader_identifier = state_obj_properties->GetShaderIdentifier(c_ray_gen_shader_name);
-                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
                 {
                     miss_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_miss_shader_names[i]);
                 }
-                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
                 {
                     hit_group_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_hit_group_names[i]);
                 }
@@ -1090,12 +1095,12 @@ namespace GoldenSun
                 ray_gen_shader_table.ExtractBuffer(ray_gen_shader_table_);
             }
             {
-                uint32_t const num_shader_records = ConvertToUint(RayType::Count);
+                uint32_t const num_shader_records = std::to_underlying(RayType::Num);
                 uint32_t const shader_record_size = shader_identifier_size;
                 ShaderTable miss_shader_table(gpu_system_, num_shader_records, shader_record_size, L"MissShaderTable");
-                for (uint32_t i = 0; i < ConvertToUint(RayType::Count); i++)
+                for (auto* miss_shader_id : miss_shader_identifiers)
                 {
-                    miss_shader_table.push_back(ShaderRecord(miss_shader_identifiers[i], shader_identifier_size));
+                    miss_shader_table.push_back(ShaderRecord(miss_shader_id, shader_identifier_size));
                 }
 
                 miss_shader_table_stride_ = miss_shader_table.ShaderRecordSize();
@@ -1106,7 +1111,7 @@ namespace GoldenSun
                 uint32_t num_shader_records = 0;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
-                    num_shader_records += meshes[i].NumPrimitives() * ConvertToUint(RayType::Count);
+                    num_shader_records += meshes[i].NumPrimitives() * std::to_underlying(RayType::Num);
                 }
 
                 uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
@@ -1165,7 +1170,7 @@ namespace GoldenSun
         // TODO: Find a better solution
         Mesh const* meshes_ = nullptr;
         uint32_t num_meshes_ = 0;
-        Light const* lights_ = nullptr;
+        PointLight const* lights_ = nullptr;
         uint32_t num_lights_ = 0;
 
         GpuDescriptorBlock mesh_desc_block_;
@@ -1174,26 +1179,28 @@ namespace GoldenSun
         std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> buffer_gpu_handles_;
         std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> material_tex_gpu_handles_;
 
-        StructuredBuffer<PbrMaterial::Buffer> material_buffer_;
-        std::array<GpuTexture2D, ConvertToUint(PbrMaterial::TextureSlot::Num)> default_textures_;
+        StructuredBuffer<PbrMaterialBuffer> material_buffer_;
+        std::array<GpuTexture2D, std::to_underlying(PbrMaterial::TextureSlot::Num)> default_textures_;
 
         std::unique_ptr<RaytracingAccelerationStructureManager> acceleration_structure_;
 
         GpuTexture2D ray_tracing_output_;
         GpuDescriptorBlock ray_tracing_output_desc_block_;
 
-        enum class RayType
+        enum class RayType : uint32_t
         {
             Radiance = 0, // ~ Primary, reflected camera/view rays calculating color for each hit.
             Shadow,       // ~ Shadow/visibility rays, only testing for occlusion
-            Count
+            Num
         };
 
-        static wchar_t const* c_ray_gen_shader_name;
-        static wchar_t const* c_hit_group_names[ConvertToUint(RayType::Count)];
-        static wchar_t const* c_any_hit_shader_name;
-        static wchar_t const* c_closest_hit_shader_name;
-        static wchar_t const* c_miss_shader_names[ConvertToUint(RayType::Count)];
+        static constexpr wchar_t const* c_ray_gen_shader_name = L"RayGenShader";
+        static constexpr wchar_t const* c_hit_group_names[std::to_underlying(RayType::Num)] = {
+            L"HitGroupRadianceRay", L"HitGroupShadowRay"};
+        static constexpr wchar_t const* c_any_hit_shader_name = L"AnyHitShader";
+        static constexpr wchar_t const* c_closest_hit_shader_name = L"ClosestHitShader";
+        static constexpr wchar_t const* c_miss_shader_names[std::to_underlying(RayType::Num)] = {
+            L"MissShaderRadianceRay", L"MissShaderShadowRay"};
         GpuUploadBuffer ray_gen_shader_table_;
         GpuUploadBuffer hit_group_shader_table_;
         uint32_t hit_group_shader_table_stride_ = 0xFFFFFFFFU;
@@ -1210,12 +1217,6 @@ namespace GoldenSun
 
         GpuMemoryBlock light_mem_block_;
     };
-
-    wchar_t const* Engine::Impl::c_ray_gen_shader_name = L"RayGenShader";
-    wchar_t const* Engine::Impl::c_hit_group_names[] = {L"HitGroupRadianceRay", L"HitGroupShadowRay"};
-    wchar_t const* Engine::Impl::c_any_hit_shader_name = L"AnyHitShader";
-    wchar_t const* Engine::Impl::c_closest_hit_shader_name = L"ClosestHitShader";
-    wchar_t const* Engine::Impl::c_miss_shader_names[] = {L"MissShaderRadianceRay", L"MissShaderShadowRay"};
 
 
     Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new Impl(device, cmd_queue))
@@ -1258,7 +1259,7 @@ namespace GoldenSun
         return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
-    void Engine::Lights(Light const* lights, uint32_t num_lights)
+    void Engine::Lights(PointLight const* lights, uint32_t num_lights)
     {
         return impl_->Lights(lights, num_lights);
     }

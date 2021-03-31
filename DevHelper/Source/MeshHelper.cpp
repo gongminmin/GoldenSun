@@ -184,51 +184,56 @@ namespace
             float ai_shininess = 1;
             aiColor4D ai_emissive(0, 0, 0, 0);
             int ai_two_sided = 0;
-            float ai_alpha_test = 0;
+            float ai_alpha_cutoff = 0;
+            float ai_normal_scale = 1;
+            float ai_occlusion_strength = 1;
 
             auto const* const mtl = ai_scene->mMaterials[mi];
 
             if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, &ai_albedo))
             {
-                material.buffer.albedo = Color4ToFloat3(ai_albedo);
-                material.buffer.opacity = ai_albedo.a;
+                material.Albedo(Color4ToFloat3(ai_albedo));
+                material.Opacity(ai_albedo.a);
             }
             else
             {
                 if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE, &ai_albedo))
                 {
-                    material.buffer.albedo = Color4ToFloat3(ai_albedo);
+                    material.Albedo(Color4ToFloat3(ai_albedo));
                 }
                 if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_OPACITY, &ai_opacity))
                 {
-                    material.buffer.opacity = ai_opacity;
+                    material.Opacity(ai_opacity);
                 }
             }
 
             if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_EMISSIVE, &ai_emissive))
             {
-                material.buffer.emissive = Color4ToFloat3(ai_emissive);
+                material.Emissive(Color4ToFloat3(ai_emissive));
             }
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, &ai_metallic))
             {
-                material.buffer.metallic = ai_metallic;
+                material.Metallic(ai_metallic);
             }
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_shininess))
             {
-                material.buffer.glossiness = ai_shininess;
+                material.Glossiness(std::max(1.0f, std::min(ai_shininess, PbrMaterial::MaxGlossiness)));
             }
-            material.buffer.glossiness = std::max(1.0f, std::min(material.buffer.glossiness, MAX_GLOSSINESS));
-
-            if ((material.buffer.opacity < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
+            else
             {
-                material.buffer.transparent = true;
+                material.Glossiness(1);
+            }
+
+            if ((material.Opacity() < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
+            {
+                material.Transparent(true);
             }
 
             if (AI_SUCCESS == aiGetMaterialInteger(mtl, AI_MATKEY_TWOSIDED, &ai_two_sided))
             {
-                material.buffer.two_sided = ai_two_sided ? true : false;
+                material.TwoSided(ai_two_sided ? true : false);
             }
 
             aiString ai_alpha_mode;
@@ -236,18 +241,18 @@ namespace
             {
                 if (strcmp(ai_alpha_mode.C_Str(), "MASK") == 0)
                 {
-                    if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_ALPHACUTOFF, &ai_alpha_test))
+                    if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_ALPHACUTOFF, &ai_alpha_cutoff))
                     {
-                        material.buffer.alpha_test = ai_alpha_test;
+                        material.AlphaCutoff(ai_alpha_cutoff);
                     }
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "BLEND") == 0)
                 {
-                    material.buffer.transparent = true;
+                    material.Transparent(true);
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "OPAQUE") == 0)
                 {
-                    material.buffer.transparent = false;
+                    material.Transparent(false);
                 }
             }
 
@@ -255,8 +260,9 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Albedo)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::Albedo,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource()));
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
@@ -264,43 +270,50 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::MetallicGlossiness,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
             }
             else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::MetallicGlossiness)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::MetallicGlossiness,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Emissive)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::Emissive,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource()));
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Normal)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::Normal,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
 
-                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &material.buffer.normal_scale);
+                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &ai_normal_scale);
+                material.NormalScale(ai_normal_scale);
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_LIGHTMAP) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.textures[ConvertToUint(PbrMaterial::TextureSlot::Occlusion)] = reinterpret_cast<ID3D12Resource*>(
-                    LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource());
+                material.Texture(PbrMaterial::TextureSlot::Occlusion,
+                    reinterpret_cast<ID3D12Resource*>(
+                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
 
-                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &material.buffer.occlusion_strength);
+                aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &ai_occlusion_strength);
+                material.OcclusionStrength(ai_occlusion_strength);
             }
         }
 
@@ -406,7 +419,7 @@ namespace
                 indices.data(), static_cast<uint32_t>(indices.size() * sizeof(indices[0])), (mesh_name_wide + L" Index Buffer").c_str());
 
             D3D12_RAYTRACING_GEOMETRY_FLAGS flags;
-            if (materials[ai_mesh->mMaterialIndex].buffer.transparent || (materials[ai_mesh->mMaterialIndex].buffer.alpha_test > 0))
+            if (materials[ai_mesh->mMaterialIndex].Transparent() || (materials[ai_mesh->mMaterialIndex].AlphaCutoff() > 0))
             {
                 flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
             }

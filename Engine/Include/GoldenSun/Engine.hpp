@@ -1,27 +1,24 @@
 #pragma once
 
-#include <memory>
-
 #include <DirectXMath.h>
-#include <d3d12.h>
 #include <dxgiformat.h>
 
-#include <GoldenSun/Base.hpp>
-#include <GoldenSun/Light.hpp>
-#include <GoldenSun/Mesh.hpp>
-
+struct ID3D12Device5;
 struct ID3D12CommandQueue;
 struct ID3D12GraphicsCommandList4;
 struct ID3D12Resource;
 
 namespace GoldenSun
 {
-    class GOLDEN_SUN_API Engine
+    class Mesh;
+    class PointLight;
+
+    class GOLDEN_SUN_API Engine final
     {
         DISALLOW_COPY_AND_ASSIGN(Engine)
 
     public:
-        explicit Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue);
+        Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue);
         ~Engine() noexcept;
 
         Engine(Engine&& other) noexcept;
@@ -31,7 +28,7 @@ namespace GoldenSun
         void Geometries(Mesh const* meshes, uint32_t num_meshes);
         void Camera(DirectX::XMFLOAT3 const& eye, DirectX::XMFLOAT3 const& look_at, DirectX::XMFLOAT3 const& up, float fov,
             float near_plane, float far_plane);
-        void Lights(Light const* lights, uint32_t num_lights);
+        void Lights(PointLight const* lights, uint32_t num_lights);
 
         void Render(ID3D12GraphicsCommandList4* cmd_list);
 

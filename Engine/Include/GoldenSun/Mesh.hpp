@@ -1,15 +1,16 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include <DirectXMath.h>
+#include <d3d12.h>
 #include <dxgiformat.h>
 
 struct ID3D12Resource;
 
 namespace GoldenSun
 {
+    class EngineInternal;
+    class PbrMaterial;
+
     struct Vertex
     {
         DirectX::XMFLOAT3 position;
@@ -19,45 +20,10 @@ namespace GoldenSun
 
     using Index = uint16_t;
 
-    struct PbrMaterial
+    class GOLDEN_SUN_API Mesh final
     {
-        // Must match PbrMaterial in shader
-        struct Buffer
-        {
-            alignas(4) DirectX::XMFLOAT3 albedo{0, 0, 0};
-            alignas(4) float opacity{1};
-            alignas(4) DirectX::XMFLOAT3 emissive{0, 0, 0};
-            alignas(4) float metallic{0};
-            alignas(4) float glossiness{1};
-            alignas(4) float alpha_test{0};
-            alignas(4) float normal_scale{1};
-            alignas(4) float occlusion_strength{1};
-            alignas(4) bool transparent{false};
-            alignas(4) bool two_sided{false};
-            alignas(4) uint8_t paddings[8]{};
-        };
-        static_assert(sizeof(Buffer) % 16 == 0);
+        friend class EngineInternal;
 
-        Buffer buffer;
-
-        enum class TextureSlot
-        {
-            Albedo,
-            MetallicGlossiness,
-            Emissive,
-            Normal,
-            Occlusion,
-
-            Num
-        };
-
-        std::array<ComPtr<ID3D12Resource>, ConvertToUint(TextureSlot::Num)> textures;
-    };
-
-    float constexpr MAX_GLOSSINESS = 8192;
-
-    class GOLDEN_SUN_API Mesh
-    {
         DISALLOW_COPY_AND_ASSIGN(Mesh)
 
     public:
@@ -76,6 +42,7 @@ namespace GoldenSun
         uint32_t AddMaterial(PbrMaterial const& material);
         uint32_t NumMaterials() const noexcept;
         PbrMaterial const& Material(uint32_t material_id) const noexcept;
+        PbrMaterial& Material(uint32_t material_id) noexcept;
 
         // TODO: Support adding a region of buffers as a primitive
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id);
@@ -94,8 +61,6 @@ namespace GoldenSun
         uint32_t NumInstances() const noexcept;
         DirectX::XMFLOAT4X4 const& Transform(uint32_t instance_id) const noexcept;
         void Transform(uint32_t instance_id, DirectX::XMFLOAT4X4 const& transform) noexcept;
-
-        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const;
 
     private:
         class Impl;

@@ -8,8 +8,30 @@
 #include <GoldenSun/Base.hpp>
 #include <GoldenSun/ComPtr.hpp>
 
+#define GOLDEN_SUN_UNREACHABLE(msg) __assume(false)
+
+#if __cpp_lib_to_underlying < 202102L
+namespace std
+{
+    template <typename Enum>
+    constexpr std::underlying_type_t<Enum> to_underlying(Enum e) noexcept
+    {
+        return static_cast<std::underlying_type_t<Enum>>(e);
+    }
+} // namespace std
+#else
+#include <utility>
+#endif
+
 namespace GoldenSun
 {
+    template <uint32_t Alignment>
+    constexpr uint32_t Align(uint32_t size) noexcept
+    {
+        static_assert((Alignment & (Alignment - 1)) == 0);
+        return (size + (Alignment - 1)) & ~(Alignment - 1);
+    }
+
     DXGI_FORMAT LinearFormatOf(DXGI_FORMAT fmt) noexcept;
     DXGI_FORMAT SRGBFormatOf(DXGI_FORMAT fmt) noexcept;
     uint32_t FormatSize(DXGI_FORMAT fmt) noexcept;

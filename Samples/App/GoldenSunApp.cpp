@@ -100,10 +100,10 @@ namespace GoldenSun
             golden_sun_engine_->Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
         }
         {
-            light_.buffer.position = {0.0f, 1.8f, -3.0f};
-            light_.buffer.color = {20.0f, 20.0f, 20.0f};
-            light_.buffer.falloff = {1, 0, 1};
-            light_.buffer.shadowing = true;
+            light_.Position({0.0f, 1.8f, -3.0f});
+            light_.Color({20.0f, 20.0f, 20.0f});
+            light_.Falloff({1, 0, 1});
+            light_.Shadowing(true);
 
             golden_sun_engine_->Lights(&light_, 1);
         }
@@ -139,9 +139,10 @@ namespace GoldenSun
             float const seconds_to_rotate_around = 8.0f;
             float const rotate = XMConvertToRadians(-360.0f * (frame_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationZ(rotate) * XMMatrixRotationY(rotate);
-            XMVECTOR light_pos = XMVector3Transform(XMLoadFloat3(&light_.buffer.position), rotate_mat);
 
-            XMStoreFloat3(&light_.buffer.position, light_pos);
+            XMFLOAT3 light_pos = light_.Position();
+            XMStoreFloat3(&light_pos, XMVector3Transform(XMLoadFloat3(&light_pos), rotate_mat));
+            light_.Position(light_pos);
 
             golden_sun_engine_->Lights(&light_, 1);
         }
