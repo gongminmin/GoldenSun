@@ -32,6 +32,8 @@ namespace GoldenSun
         return (size + (Alignment - 1)) & ~(Alignment - 1);
     }
 
+    std::string ExeDirectory();
+
     DXGI_FORMAT LinearFormatOf(DXGI_FORMAT fmt) noexcept;
     DXGI_FORMAT SRGBFormatOf(DXGI_FORMAT fmt) noexcept;
     uint32_t FormatSize(DXGI_FORMAT fmt) noexcept;

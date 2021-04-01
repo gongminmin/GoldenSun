@@ -1,13 +1,11 @@
 #pragma once
 
-#include <memory>
-#include <sstream>
-#include <string_view>
-
 #include <GoldenSun/GoldenSun.hpp>
 #include <GoldenSun/Gpu/GpuSystem.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
 #include <GoldenSun/Util.hpp>
+
+#include <string>
 
 #include "Timer.hpp"
 #include "WindowWin32.hpp"
@@ -47,11 +45,11 @@ namespace GoldenSun
     private:
         std::string asset_dir_;
 
-        std::unique_ptr<WindowWin32> window_;
         uint32_t width_;
         uint32_t height_;
         bool active_ = false;
         bool window_visible_ = true;
+        WindowWin32 window_;
 
         GpuSystem gpu_system_;
         GpuSwapChain swap_chain_;
@@ -83,6 +81,6 @@ namespace GoldenSun
 
         PointLight light_;
 
-        std::unique_ptr<Engine> golden_sun_engine_;
+        Engine golden_sun_engine_;
     };
 } // namespace GoldenSun

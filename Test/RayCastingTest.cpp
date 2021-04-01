@@ -17,11 +17,11 @@ public:
         auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice());
         auto* d3d12_cmd_queue = reinterpret_cast<ID3D12CommandQueue*>(gpu_system.NativeCommandQueue());
 
-        golden_sun_engine_ = std::make_unique<Engine>(d3d12_device, d3d12_cmd_queue);
+        golden_sun_engine_ = Engine(d3d12_device, d3d12_cmd_queue);
     }
 
 protected:
-    std::unique_ptr<Engine> golden_sun_engine_;
+    Engine golden_sun_engine_;
 };
 
 TEST_F(RayCastingTest, SingleObject)
@@ -29,7 +29,7 @@ TEST_F(RayCastingTest, SingleObject)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
@@ -40,7 +40,7 @@ TEST_F(RayCastingTest, SingleObject)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     PointLight light;
@@ -48,7 +48,7 @@ TEST_F(RayCastingTest, SingleObject)
     light.Color({1.0f, 0.8f, 0.0f});
     light.Falloff({1, 0, 0});
     light.Shadowing(false);
-    golden_sun_engine_->Lights(&light, 1);
+    golden_sun_engine_.Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -85,14 +85,14 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddInstance(world);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/SingleObject", actual_image);
 
     gpu_system.MoveToNextFrame();
@@ -103,7 +103,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
@@ -114,7 +114,7 @@ TEST_F(RayCastingTest, MultipleObjects)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     PointLight light;
@@ -122,7 +122,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     light.Color({1.0f, 0.8f, 0.0f});
     light.Falloff({1, 0, 0});
     light.Shadowing(false);
-    golden_sun_engine_->Lights(&light, 1);
+    golden_sun_engine_.Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -183,14 +183,14 @@ TEST_F(RayCastingTest, MultipleObjects)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/MultipleObjects", actual_image);
 
     gpu_system.MoveToNextFrame();
@@ -201,7 +201,7 @@ TEST_F(RayCastingTest, Instancing)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
@@ -212,7 +212,7 @@ TEST_F(RayCastingTest, Instancing)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     PointLight light;
@@ -220,7 +220,7 @@ TEST_F(RayCastingTest, Instancing)
     light.Color({1.0f, 0.8f, 0.0f});
     light.Falloff({1, 0, 0});
     light.Shadowing(false);
-    golden_sun_engine_->Lights(&light, 1);
+    golden_sun_engine_.Lights(&light, 1);
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -287,14 +287,14 @@ TEST_F(RayCastingTest, Instancing)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/Instancing", actual_image);
 
     gpu_system.MoveToNextFrame();
@@ -305,7 +305,7 @@ TEST_F(RayCastingTest, Mesh)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
@@ -316,7 +316,7 @@ TEST_F(RayCastingTest, Mesh)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     PointLight light;
@@ -324,7 +324,7 @@ TEST_F(RayCastingTest, Mesh)
     light.Color({20.0f, 24.0f, 20.0f});
     light.Falloff({1, 0, 1});
     light.Shadowing(false);
-    golden_sun_engine_->Lights(&light, 1);
+    golden_sun_engine_.Lights(&light, 1);
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)
@@ -337,14 +337,14 @@ TEST_F(RayCastingTest, Mesh)
                                     XMMatrixTranslation(+1.8f, 0, 0));
         mesh.AddInstance(world);
     }
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/Mesh", actual_image);
 
     gpu_system.MoveToNextFrame();
@@ -355,7 +355,7 @@ TEST_F(RayCastingTest, MeshShadowed)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
@@ -366,7 +366,7 @@ TEST_F(RayCastingTest, MeshShadowed)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     std::vector<PointLight> lights;
@@ -383,7 +383,7 @@ TEST_F(RayCastingTest, MeshShadowed)
         light1.Falloff({1, 0, 1});
         light1.Shadowing(false);
     }
-    golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
+    golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)
@@ -396,14 +396,14 @@ TEST_F(RayCastingTest, MeshShadowed)
                                     XMMatrixTranslation(+1.8f, 0, 0));
         mesh.AddInstance(world);
     }
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/MeshShadowed", actual_image);
 
     gpu_system.MoveToNextFrame();
@@ -414,7 +414,7 @@ TEST_F(RayCastingTest, Transparent)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_->RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
         XMFLOAT3 const eye = {0.0f, 1.0f, -5.0f};
@@ -425,7 +425,7 @@ TEST_F(RayCastingTest, Transparent)
         float const near_plane = 0.1f;
         float far_plane = 20;
 
-        golden_sun_engine_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     std::vector<PointLight> lights;
@@ -442,7 +442,7 @@ TEST_F(RayCastingTest, Transparent)
         light1.Falloff({1, 0, 1});
         light1.Shadowing(true);
     }
-    golden_sun_engine_->Lights(lights.data(), static_cast<uint32_t>(lights.size()));
+    golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "AlphaBlendModeTest/AlphaBlendModeTest.gltf");
     for (auto& mesh : meshes)
@@ -451,14 +451,14 @@ TEST_F(RayCastingTest, Transparent)
         XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.6f, 0.6f, 0.6f));
         mesh.Transform(0, world);
     }
-    golden_sun_engine_->Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_->Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(d3d12_cmd_list);
     gpu_system.Execute(std::move(cmd_list));
 
-    GpuTexture2D actual_image(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     test_env.CompareWithExpected("RayCastingTest/Transparent", actual_image);
 
     gpu_system.MoveToNextFrame();

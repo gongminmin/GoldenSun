@@ -2,8 +2,20 @@
 
 #include <GoldenSun/Util.hpp>
 
+#include <filesystem>
+
 namespace GoldenSun
 {
+    std::string ExeDirectory()
+    {
+        char exe_file[MAX_PATH];
+        uint32_t size = ::GetModuleFileNameA(nullptr, exe_file, static_cast<uint32_t>(std::size(exe_file)));
+        Verify((size != 0) && (size != std::size(exe_file)));
+
+        std::filesystem::path exe_path = exe_file;
+        return exe_path.parent_path().string() + '/';
+    }
+
     DXGI_FORMAT LinearFormatOf(DXGI_FORMAT fmt) noexcept
     {
         switch (fmt)

@@ -18,6 +18,7 @@ namespace GoldenSun
         DISALLOW_COPY_AND_ASSIGN(Engine)
 
     public:
+        Engine();
         Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue);
         ~Engine() noexcept;
 

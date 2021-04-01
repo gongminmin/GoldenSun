@@ -6,6 +6,8 @@
 
 namespace GoldenSun
 {
+    WindowWin32::WindowWin32() noexcept = default;
+
     WindowWin32::WindowWin32(GoldenSunApp& app, std::wstring const& title) : app_(&app)
     {
         HINSTANCE instance = ::GetModuleHandle(nullptr);
@@ -26,6 +28,29 @@ namespace GoldenSun
             rect.bottom - rect.top, nullptr, nullptr, instance, nullptr);
 
         ::SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+    }
+
+    WindowWin32::WindowWin32(WindowWin32&& other) noexcept : app_(std::move(other.app_)), hwnd_(std::move(other.hwnd_))
+    {
+        other.app_ = nullptr;
+        other.hwnd_ = nullptr;
+
+        ::SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+    }
+
+    WindowWin32& WindowWin32::operator=(WindowWin32&& other) noexcept
+    {
+        if (this != &other)
+        {
+            app_ = std::move(other.app_);
+            hwnd_ = std::move(other.hwnd_);
+
+            other.app_ = nullptr;
+            other.hwnd_ = nullptr;
+
+            ::SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        }
+        return *this;
     }
 
     void WindowWin32::ShowWindow(int cmd_show)

@@ -10,7 +10,6 @@
 #include <cassert>
 #include <iomanip>
 #include <list>
-#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -26,10 +25,6 @@
 
 using namespace DirectX;
 using namespace GoldenSun;
-
-DEFINE_UUID_OF(ID3D12RootSignature);
-DEFINE_UUID_OF(ID3D12StateObject);
-DEFINE_UUID_OF(ID3D12StateObjectProperties);
 
 namespace
 {
@@ -602,6 +597,8 @@ namespace
             D3D12_GPU_DESCRIPTOR_HANDLE texture_gpu_handle;
         };
     };
+
+    uint32_t constexpr MaxNumBottomLevelInstances = 1000;
 } // namespace
 
 namespace GoldenSun
@@ -614,12 +611,9 @@ namespace GoldenSun
     public:
         Impl(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue)
             : gpu_system_(device, cmd_queue), per_frame_constants_(gpu_system_, GpuSystem::FrameCount(), L"Per Frame Constants"),
-              descriptor_size_(gpu_system_.CbvSrvUavDescSize())
+              descriptor_size_(gpu_system_.CbvSrvUavDescSize()), acceleration_structure_(gpu_system_, MaxNumBottomLevelInstances)
         {
             Verify(IsDXRSupported(device));
-
-            uint32_t constexpr MaxNumBottomLevelInstances = 1000;
-            acceleration_structure_ = std::make_unique<RaytracingAccelerationStructureManager>(gpu_system_, MaxNumBottomLevelInstances);
 
             this->CreateRootSignatures();
             this->CreateRayTracingPipelineStateObject();
@@ -715,7 +709,7 @@ namespace GoldenSun
                     }
 
                     bool update_on_build = false;
-                    acceleration_structure_->AddBottomLevelAS(gpu_system_, build_flags, meshes[i], update_on_build, update_on_build);
+                    acceleration_structure_.AddBottomLevelAS(gpu_system_, build_flags, meshes[i], update_on_build, update_on_build);
                 }
             }
 
@@ -805,7 +799,7 @@ namespace GoldenSun
             {
                 for (uint32_t j = 0; j < meshes[i].NumInstances(); ++j)
                 {
-                    acceleration_structure_->AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&meshes[i].Transform(j)));
+                    acceleration_structure_.AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&meshes[i].Transform(j)));
                 }
             }
 
@@ -814,7 +808,7 @@ namespace GoldenSun
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 bool allow_update = false;
                 bool perform_update_on_build = false;
-                acceleration_structure_->ResetTopLevelAS(
+                acceleration_structure_.ResetTopLevelAS(
                     gpu_system_, build_flags, allow_update, perform_update_on_build, L"Top-Level Acceleration Structure");
             }
         }
@@ -866,7 +860,7 @@ namespace GoldenSun
 
             uint32_t const frame_index = gpu_system_.FrameIndex();
 
-            acceleration_structure_->Build(cmd_list, frame_index);
+            acceleration_structure_.Build(cmd_list, frame_index);
 
             d3d12_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
@@ -888,7 +882,7 @@ namespace GoldenSun
             d3d12_cmd_list->SetComputeRootDescriptorTable(
                 std::to_underlying(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
             d3d12_cmd_list->SetComputeRootShaderResourceView(std::to_underlying(GlobalRootSignature::Slot::AccelerationStructure),
-                acceleration_structure_->TopLevelASBuffer().GpuVirtualAddress());
+                acceleration_structure_.TopLevelASBuffer().GpuVirtualAddress());
             d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::MaterialBuffer),
                 OffsetHandle(mesh_desc_block_.GpuHandle(), 0, descriptor_size_));
             d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::LightBuffer),
@@ -1122,7 +1116,7 @@ namespace GoldenSun
                 uint32_t material_id = 0;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
-                    auto& geometry = acceleration_structure_->BottomLevelAS(i);
+                    auto& geometry = acceleration_structure_.BottomLevelAS(i);
                     uint32_t const shader_record_offset = hit_group_shader_table.NumShaderRecords();
                     geometry.InstanceContributionToHitGroupIndex(shader_record_offset);
 
@@ -1182,7 +1176,7 @@ namespace GoldenSun
         StructuredBuffer<PbrMaterialBuffer> material_buffer_;
         std::array<GpuTexture2D, std::to_underlying(PbrMaterial::TextureSlot::Num)> default_textures_;
 
-        std::unique_ptr<RaytracingAccelerationStructureManager> acceleration_structure_;
+        RaytracingAccelerationStructureManager acceleration_structure_;
 
         GpuTexture2D ray_tracing_output_;
         GpuDescriptorBlock ray_tracing_output_desc_block_;
@@ -1218,6 +1212,8 @@ namespace GoldenSun
         GpuMemoryBlock light_mem_block_;
     };
 
+
+    Engine::Engine() = default;
 
     Engine::Engine(ID3D12Device5* device, ID3D12CommandQueue* cmd_queue) : impl_(new Impl(device, cmd_queue))
     {

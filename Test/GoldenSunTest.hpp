@@ -1,16 +1,6 @@
 #pragma once
 
-#include <GoldenSun/ComPtr.hpp>
 #include <GoldenSun/Gpu/GpuSystem.hpp>
-#include <GoldenSun/SmartPtrHelper.hpp>
-#include <GoldenSun/Util.hpp>
-
-#include <d3d12.h>
-#include <dxgi1_6.h>
-
-#ifdef _DEBUG
-#include <dxgidebug.h>
-#endif
 
 #include <gtest/gtest.h>
 

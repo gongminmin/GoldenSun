@@ -21,7 +21,7 @@ namespace GoldenSun
         DISALLOW_COPY_AND_ASSIGN(AccelerationStructure)
 
     public:
-        virtual ~AccelerationStructure() noexcept = default;
+        virtual ~AccelerationStructure() noexcept;
 
         AccelerationStructure(AccelerationStructure&& other) noexcept;
         AccelerationStructure& operator=(AccelerationStructure&& other) noexcept;
@@ -57,6 +57,7 @@ namespace GoldenSun
         }
 
     protected:
+        AccelerationStructure() noexcept;
         AccelerationStructure(
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept;
 
@@ -77,6 +78,8 @@ namespace GoldenSun
 
     class BottomLevelAccelerationStructure : public AccelerationStructure
     {
+        DISALLOW_COPY_AND_ASSIGN(BottomLevelAccelerationStructure)
+
     public:
         BottomLevelAccelerationStructure(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
             Mesh const& mesh, bool allow_update = false, bool update_on_build = false, std::wstring_view name = L"");
@@ -114,7 +117,10 @@ namespace GoldenSun
 
     class TopLevelAccelerationStructure : public AccelerationStructure
     {
+        DISALLOW_COPY_AND_ASSIGN(TopLevelAccelerationStructure)
+
     public:
+        TopLevelAccelerationStructure() noexcept;
         TopLevelAccelerationStructure(GpuSystem& gpu_system, uint32_t num_bottom_level_as_instance_descs,
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update = false, bool update_on_build = false,
             std::wstring_view name = L"");
@@ -129,8 +135,13 @@ namespace GoldenSun
 
     class RaytracingAccelerationStructureManager
     {
+        DISALLOW_COPY_AND_ASSIGN(RaytracingAccelerationStructureManager);
+
     public:
         RaytracingAccelerationStructureManager(GpuSystem& gpu_system, uint32_t max_num_bottom_level_instances);
+
+        RaytracingAccelerationStructureManager(RaytracingAccelerationStructureManager&& other) noexcept;
+        RaytracingAccelerationStructureManager& operator=(RaytracingAccelerationStructureManager&& other) noexcept;
 
         uint32_t AddBottomLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
             bool allow_update = false, bool perform_update_on_build = false);
@@ -158,7 +169,7 @@ namespace GoldenSun
 
         GpuDefaultBuffer const& TopLevelASBuffer() const noexcept
         {
-            return top_level_as_->Buffer();
+            return top_level_as_.Buffer();
         }
 
         uint32_t NumBottomLevelASInstances() const noexcept
@@ -173,7 +184,7 @@ namespace GoldenSun
         StructuredBuffer<D3D12_RAYTRACING_INSTANCE_DESC> bottom_level_as_instance_descs_;
         uint32_t num_bottom_level_as_instances_ = 0;
 
-        std::unique_ptr<TopLevelAccelerationStructure> top_level_as_;
+        TopLevelAccelerationStructure top_level_as_;
 
         GpuDefaultBuffer scratch_buffer_;
         uint32_t scratch_buffer_size_ = 0;

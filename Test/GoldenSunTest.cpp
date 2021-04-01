@@ -16,9 +16,6 @@
 using namespace DirectX;
 using namespace testing;
 
-DEFINE_UUID_OF(ID3D12PipelineState);
-DEFINE_UUID_OF(ID3D12RootSignature);
-
 namespace
 {
     GoldenSun::TestEnvironment* test_env;
@@ -33,20 +30,13 @@ namespace GoldenSun
 
     void TestEnvironment::SetUp()
     {
+        auto const exe_dir = ExeDirectory();
+        asset_dir_ = exe_dir + "Assets/";
+        expected_dir_ = exe_dir + "Test/Expected/";
+        result_dir_ = exe_dir + "Test/Result/";
+        if (!std::filesystem::exists(result_dir_))
         {
-            char exe_file[MAX_PATH];
-            uint32_t size = ::GetModuleFileNameA(nullptr, exe_file, static_cast<uint32_t>(std::size(exe_file)));
-            Verify((size != 0) && (size != std::size(exe_file)));
-
-            std::filesystem::path exe_path = exe_file;
-            auto parent_path = exe_path.parent_path();
-            asset_dir_ = (parent_path / "Assets/").string();
-            expected_dir_ = (parent_path / "Test/Expected/").string();
-            result_dir_ = (parent_path / "Test/Result/").string();
-            if (!std::filesystem::exists(result_dir_))
-            {
-                std::filesystem::create_directory(result_dir_);
-            }
+            std::filesystem::create_directory(result_dir_);
         }
     }
 

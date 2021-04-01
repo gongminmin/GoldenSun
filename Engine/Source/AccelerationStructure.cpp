@@ -14,34 +14,17 @@ using namespace GoldenSun;
 
 namespace GoldenSun
 {
+    AccelerationStructure::AccelerationStructure() noexcept = default;
+    AccelerationStructure::~AccelerationStructure() noexcept = default;
+    AccelerationStructure::AccelerationStructure(AccelerationStructure&& other) noexcept = default;
+    AccelerationStructure& AccelerationStructure::operator=(AccelerationStructure&& other) noexcept = default;
+
     AccelerationStructure::AccelerationStructure(
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build) noexcept
         : build_flags_(build_flags | (allow_update ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE
                                                    : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE)),
           update_on_build_(update_on_build), allow_update_(allow_update)
     {
-    }
-
-    AccelerationStructure::AccelerationStructure(AccelerationStructure&& other) noexcept
-        : acceleration_structure_(std::move(other.acceleration_structure_)), build_flags_(std::move(other.build_flags_)),
-          prebuild_info_(std::move(other.prebuild_info_)), update_on_build_(std::move(other.update_on_build_)),
-          allow_update_(std::move(other.allow_update_)), is_built_(std::move(other.is_built_)), dirty_(std::move(other.dirty_))
-    {
-    }
-
-    AccelerationStructure& AccelerationStructure::operator=(AccelerationStructure&& other) noexcept
-    {
-        if (this != &other)
-        {
-            acceleration_structure_ = std::move(other.acceleration_structure_);
-            build_flags_ = std::move(other.build_flags_);
-            prebuild_info_ = std::move(other.prebuild_info_);
-            update_on_build_ = std::move(other.update_on_build_);
-            allow_update_ = std::move(other.allow_update_);
-            is_built_ = std::move(other.is_built_);
-            dirty_ = std::move(other.dirty_);
-        }
-        return *this;
     }
 
     void AccelerationStructure::AddBarrier(GpuCommandList& cmd_list) noexcept
@@ -68,6 +51,8 @@ namespace GoldenSun
     }
 
 
+    BottomLevelAccelerationStructure::~BottomLevelAccelerationStructure() noexcept = default;
+
     BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh, bool allow_update, bool update_on_build,
         std::wstring_view name)
@@ -77,8 +62,6 @@ namespace GoldenSun
         this->CreateResource(gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL, geometry_descs_.data(),
             static_cast<uint32_t>(geometry_descs_.size()), std::move(name));
     }
-
-    BottomLevelAccelerationStructure::~BottomLevelAccelerationStructure() noexcept = default;
 
     BottomLevelAccelerationStructure::BottomLevelAccelerationStructure(BottomLevelAccelerationStructure&& other) noexcept
         : AccelerationStructure(std::move(other)), gpu_system_(other.gpu_system_), geometry_descs_(std::move(other.geometry_descs_)),
@@ -149,6 +132,11 @@ namespace GoldenSun
     }
 
 
+    TopLevelAccelerationStructure::TopLevelAccelerationStructure() noexcept = default;
+    TopLevelAccelerationStructure::~TopLevelAccelerationStructure() noexcept = default;
+    TopLevelAccelerationStructure::TopLevelAccelerationStructure(TopLevelAccelerationStructure&& other) noexcept = default;
+    TopLevelAccelerationStructure& TopLevelAccelerationStructure::operator=(TopLevelAccelerationStructure&& other) noexcept = default;
+
     TopLevelAccelerationStructure::TopLevelAccelerationStructure(GpuSystem& gpu_system, uint32_t num_bottom_level_as_instance_descs,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool update_on_build, std::wstring_view name)
         : AccelerationStructure(build_flags, allow_update, update_on_build)
@@ -156,11 +144,6 @@ namespace GoldenSun
         this->CreateResource(gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL, nullptr,
             num_bottom_level_as_instance_descs, std::move(name));
     }
-
-    TopLevelAccelerationStructure::~TopLevelAccelerationStructure() noexcept = default;
-
-    TopLevelAccelerationStructure::TopLevelAccelerationStructure(TopLevelAccelerationStructure&& other) noexcept = default;
-    TopLevelAccelerationStructure& TopLevelAccelerationStructure::operator=(TopLevelAccelerationStructure&& other) noexcept = default;
 
     void TopLevelAccelerationStructure::Build(GpuCommandList& cmd_list, uint32_t num_bottom_level_as_instance_descs,
         D3D12_GPU_VIRTUAL_ADDRESS bottom_level_as_instance_descs, GpuBuffer const& scratch, [[maybe_unused]] bool update)
@@ -188,6 +171,12 @@ namespace GoldenSun
         dirty_ = false;
         is_built_ = true;
     }
+
+
+    RaytracingAccelerationStructureManager::RaytracingAccelerationStructureManager(
+        RaytracingAccelerationStructureManager&& other) noexcept = default;
+    RaytracingAccelerationStructureManager& RaytracingAccelerationStructureManager::operator=(
+        RaytracingAccelerationStructureManager&& other) noexcept = default;
 
     RaytracingAccelerationStructureManager::RaytracingAccelerationStructureManager(
         GpuSystem& gpu_system, uint32_t max_num_bottom_level_instances)
@@ -244,10 +233,10 @@ namespace GoldenSun
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool perform_update_on_build,
         std::wstring_view resource_name)
     {
-        top_level_as_ = std::make_unique<TopLevelAccelerationStructure>(
+        top_level_as_ = TopLevelAccelerationStructure(
             gpu_system, this->NumBottomLevelASInstances(), build_flags, allow_update, perform_update_on_build, std::move(resource_name));
 
-        scratch_buffer_size_ = std::max(scratch_buffer_size_, top_level_as_->RequiredScratchSize());
+        scratch_buffer_size_ = std::max(scratch_buffer_size_, top_level_as_.RequiredScratchSize());
         scratch_buffer_ = gpu_system.CreateDefaultBuffer(
             scratch_buffer_size_, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchBuffer");
     }
@@ -269,7 +258,7 @@ namespace GoldenSun
 
         {
             D3D12_GPU_VIRTUAL_ADDRESS instance_descs = bottom_level_as_instance_descs_.GpuVirtualAddress(frame_index);
-            top_level_as_->Build(cmd_list, this->NumBottomLevelASInstances(), instance_descs, scratch_buffer_);
+            top_level_as_.Build(cmd_list, this->NumBottomLevelASInstances(), instance_descs, scratch_buffer_);
         }
     }
 } // namespace GoldenSun

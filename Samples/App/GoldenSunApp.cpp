@@ -7,11 +7,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <iomanip>
+#include <sstream>
 #include <string>
-
-#ifdef _DEBUG
-#include <dxgidebug.h>
-#endif
 
 using namespace std;
 using namespace DirectX;
@@ -23,31 +20,21 @@ namespace
 
 namespace GoldenSun
 {
-    GoldenSunApp::GoldenSunApp(uint32_t width, uint32_t height) : width_(width), height_(height)
+    GoldenSunApp::GoldenSunApp(uint32_t width, uint32_t height)
+        : asset_dir_(ExeDirectory() + "Assets/"), width_(width), height_(height), window_(*this, WindowTitle)
     {
-        {
-            char exe_file[MAX_PATH];
-            uint32_t size = ::GetModuleFileNameA(nullptr, exe_file, static_cast<uint32_t>(std::size(exe_file)));
-            Verify((size != 0) && (size != std::size(exe_file)));
-
-            std::filesystem::path exe_path = exe_file;
-            asset_dir_ = (exe_path.parent_path() / "Assets/").string();
-        }
-
-        window_ = std::make_unique<WindowWin32>(*this, WindowTitle);
-
         this->CreateDeviceResources();
         this->CreateWindowSizeDependentResources();
 
         auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system_.NativeDevice());
         auto* d3d12_cmd_queue = reinterpret_cast<ID3D12CommandQueue*>(gpu_system_.NativeCommandQueue());
 
-        golden_sun_engine_ = std::make_unique<Engine>(d3d12_device, d3d12_cmd_queue);
-        golden_sun_engine_->RenderTarget(width_, height_, back_buffer_fmt_);
+        golden_sun_engine_ = Engine(d3d12_device, d3d12_cmd_queue);
+        golden_sun_engine_.RenderTarget(width_, height_, back_buffer_fmt_);
 
         this->InitializeScene();
 
-        window_->ShowWindow(SW_SHOWNORMAL);
+        window_.ShowWindow(SW_SHOWNORMAL);
 
         (void)::DXGIDeclareAdapterRemovalSupport();
     }
@@ -97,7 +84,7 @@ namespace GoldenSun
             near_plane_ = 0.1f;
             far_plane_ = 20;
 
-            golden_sun_engine_->Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
+            golden_sun_engine_.Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
         }
         {
             light_.Position({0.0f, 1.8f, -3.0f});
@@ -105,11 +92,11 @@ namespace GoldenSun
             light_.Falloff({1, 0, 1});
             light_.Shadowing(true);
 
-            golden_sun_engine_->Lights(&light_, 1);
+            golden_sun_engine_.Lights(&light_, 1);
         }
 
         meshes_ = LoadMesh(gpu_system_, asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
-        golden_sun_engine_->Geometries(meshes_.data(), static_cast<uint32_t>(meshes_.size()));
+        golden_sun_engine_.Geometries(meshes_.data(), static_cast<uint32_t>(meshes_.size()));
     }
 
     void GoldenSunApp::Active(bool active)
@@ -133,7 +120,7 @@ namespace GoldenSun
             XMStoreFloat3(&look_at_, look_at);
             XMStoreFloat3(&up_, up);
 
-            golden_sun_engine_->Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
+            golden_sun_engine_.Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
         }
         {
             float const seconds_to_rotate_around = 8.0f;
@@ -144,7 +131,7 @@ namespace GoldenSun
             XMStoreFloat3(&light_pos, XMVector3Transform(XMLoadFloat3(&light_pos), rotate_mat));
             light_.Position(light_pos);
 
-            golden_sun_engine_->Lights(&light_, 1);
+            golden_sun_engine_.Lights(&light_, 1);
         }
 
         if (window_visible_)
@@ -152,10 +139,10 @@ namespace GoldenSun
             auto cmd_list = gpu_system_.CreateCommandList();
 
             auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-            golden_sun_engine_->Render(d3d12_cmd_list);
+            golden_sun_engine_.Render(d3d12_cmd_list);
 
             auto& render_target = render_targets_[gpu_system_.FrameIndex()];
-            GpuTexture2D ray_tracing_output(golden_sun_engine_->Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            GpuTexture2D ray_tracing_output(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
             render_target.Transition(cmd_list, D3D12_RESOURCE_STATE_COPY_DEST);
             ray_tracing_output.Transition(cmd_list, D3D12_RESOURCE_STATE_GENERIC_READ);
@@ -193,7 +180,7 @@ namespace GoldenSun
             height_ = height;
             this->CreateWindowSizeDependentResources();
 
-            golden_sun_engine_->RenderTarget(width_, height_, back_buffer_fmt_);
+            golden_sun_engine_.RenderTarget(width_, height_, back_buffer_fmt_);
         }
     }
 
@@ -228,7 +215,7 @@ namespace GoldenSun
         }
         else
         {
-            swap_chain_ = gpu_system_.CreateSwapChain(window_->Hwnd(), back_buffer_width, back_buffer_height, back_buffer_fmt);
+            swap_chain_ = gpu_system_.CreateSwapChain(window_.Hwnd(), back_buffer_width, back_buffer_height, back_buffer_fmt);
         }
 
         for (uint32_t i = 0; i < GpuSystem::FrameCount(); ++i)
@@ -242,7 +229,7 @@ namespace GoldenSun
 
     void GoldenSunApp::HandleDeviceLost()
     {
-        golden_sun_engine_->RenderTarget(0, 0, back_buffer_fmt_);
+        golden_sun_engine_.RenderTarget(0, 0, back_buffer_fmt_);
 
         for (auto& render_target : render_targets_)
         {
@@ -257,7 +244,7 @@ namespace GoldenSun
         this->CreateDeviceResources();
         this->CreateWindowSizeDependentResources();
 
-        golden_sun_engine_->RenderTarget(width_, height_, back_buffer_fmt_);
+        golden_sun_engine_.RenderTarget(width_, height_, back_buffer_fmt_);
     }
 
     void GoldenSunApp::FrameStats()
@@ -280,7 +267,7 @@ namespace GoldenSun
 
             std::wostringstream ss;
             ss << std::setprecision(2) << fixed << WindowTitle << L": " << fps << L"Hz, " << rays_per_second / 1e6f << L" M Primary Rays/s";
-            window_->WindowText(ss.str());
+            window_.WindowText(ss.str());
         }
 
         timer_.Restart();
