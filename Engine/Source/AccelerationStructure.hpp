@@ -144,11 +144,11 @@ namespace GoldenSun
         RaytracingAccelerationStructureManager& operator=(RaytracingAccelerationStructureManager&& other) noexcept;
 
         uint32_t AddBottomLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
-            bool allow_update = false, bool perform_update_on_build = false);
+            uint32_t instance_contribution_to_hit_group_index, bool allow_update = false, bool perform_update_on_build = false);
         uint32_t AddBottomLevelASInstance(uint32_t index, uint32_t instance_contribution_to_hit_group_index = 0xFFFFFFFFU,
             DirectX::XMMATRIX transform = DirectX::XMMatrixIdentity(), uint8_t instance_mask = 1);
 
-        void ResetTopLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
+        void AssignTopLevelAS(GpuSystem& gpu_system, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags,
             bool allow_update = false, bool perform_update_on_build = false, std::wstring_view resource_name = L"");
 
         void Build(GpuCommandList& cmd_list, uint32_t frame_index, bool force_build = false);

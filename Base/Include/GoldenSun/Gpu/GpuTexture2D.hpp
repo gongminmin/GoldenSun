@@ -22,6 +22,8 @@ namespace GoldenSun
         GpuTexture2D(GpuTexture2D&& other) noexcept;
         GpuTexture2D& operator=(GpuTexture2D&& other) noexcept;
 
+        GpuTexture2D Share() const;
+
         explicit operator bool() const noexcept;
 
         // TODO: Remove it after finishing the GPU system

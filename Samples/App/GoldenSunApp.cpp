@@ -96,7 +96,7 @@ namespace GoldenSun
         }
 
         meshes_ = LoadMesh(gpu_system_, asset_dir_ + "DamagedHelmet/DamagedHelmet.gltf");
-        golden_sun_engine_.Geometries(meshes_.data(), static_cast<uint32_t>(meshes_.size()));
+        golden_sun_engine_.Meshes(meshes_.data(), static_cast<uint32_t>(meshes_.size()));
     }
 
     void GoldenSunApp::Active(bool active)

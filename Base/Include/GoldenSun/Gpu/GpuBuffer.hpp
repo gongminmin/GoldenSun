@@ -23,6 +23,8 @@ namespace GoldenSun
         GpuBuffer(GpuBuffer&& other) noexcept;
         GpuBuffer& operator=(GpuBuffer&& other) noexcept;
 
+        GpuBuffer Share() const;
+
         explicit operator bool() const noexcept;
 
         // TODO: Remove it after finishing the GPU system
@@ -72,6 +74,8 @@ namespace GoldenSun
         GpuUploadBuffer(GpuUploadBuffer&& other) noexcept;
         GpuUploadBuffer& operator=(GpuUploadBuffer&& other) noexcept;
 
+        GpuUploadBuffer Share() const;
+
         void Reset() noexcept;
 
         void* MappedData() noexcept;
@@ -96,6 +100,8 @@ namespace GoldenSun
 
         GpuReadbackBuffer(GpuReadbackBuffer&& other) noexcept;
         GpuReadbackBuffer& operator=(GpuReadbackBuffer&& other) noexcept;
+
+        GpuReadbackBuffer Share() const;
 
         void Reset() noexcept;
 

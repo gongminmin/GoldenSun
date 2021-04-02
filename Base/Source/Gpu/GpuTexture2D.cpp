@@ -48,6 +48,13 @@ namespace GoldenSun
             }
         }
 
+        void Share(Impl& new_impl) const
+        {
+            new_impl.resource_ = resource_;
+            new_impl.desc_ = desc_;
+            new_impl.curr_states_ = curr_states_;
+        }
+
         explicit operator bool() const noexcept
         {
             return resource_ ? true : false;
@@ -305,6 +312,13 @@ namespace GoldenSun
     GpuTexture2D::GpuTexture2D(void* native_resource, D3D12_RESOURCE_STATES curr_state, std::wstring_view name) noexcept
         : impl_(native_resource, curr_state, std::move(name))
     {
+    }
+
+    GpuTexture2D GpuTexture2D::Share() const
+    {
+        GpuTexture2D texture;
+        impl_->Share(*texture.impl_);
+        return texture;
     }
 
     GpuTexture2D::operator bool() const noexcept

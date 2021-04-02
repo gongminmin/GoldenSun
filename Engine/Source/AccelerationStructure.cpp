@@ -186,12 +186,13 @@ namespace GoldenSun
     }
 
     uint32_t RaytracingAccelerationStructureManager::AddBottomLevelAS(GpuSystem& gpu_system,
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh, bool allow_update,
-        [[maybe_unused]] bool perform_update_on_build)
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, Mesh const& mesh,
+        uint32_t instance_contribution_to_hit_group_index, bool allow_update, [[maybe_unused]] bool perform_update_on_build)
     {
         uint32_t const as_id = static_cast<uint32_t>(bottom_level_as_.size());
-        auto const& bottom_level_as =
+        auto& bottom_level_as =
             bottom_level_as_.emplace_back(BottomLevelAccelerationStructure(gpu_system, build_flags, mesh, allow_update));
+        bottom_level_as.InstanceContributionToHitGroupIndex(instance_contribution_to_hit_group_index);
         scratch_buffer_size_ = std::max(scratch_buffer_size_, bottom_level_as.RequiredScratchSize());
         return as_id;
     }
@@ -229,7 +230,7 @@ namespace GoldenSun
         return max_instance_contribution_to_hit_group_index;
     };
 
-    void RaytracingAccelerationStructureManager::ResetTopLevelAS(GpuSystem& gpu_system,
+    void RaytracingAccelerationStructureManager::AssignTopLevelAS(GpuSystem& gpu_system,
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags, bool allow_update, bool perform_update_on_build,
         std::wstring_view resource_name)
     {

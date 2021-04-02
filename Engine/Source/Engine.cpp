@@ -89,7 +89,7 @@ namespace
     {
     public:
         ShaderTable(GpuSystem& gpu_system, uint32_t num_shader_records, uint32_t shader_record_size)
-            : ShaderTable(gpu_system, num_shader_records, shader_record_size, nullptr)
+            : ShaderTable(gpu_system, num_shader_records, shader_record_size, L"")
         {
         }
 
@@ -141,7 +141,7 @@ namespace
         }
 
     protected:
-        D3D12_STATE_SUBOBJECT const* subobject_;
+        D3D12_STATE_SUBOBJECT const* subobject_{};
     };
 
     class D3D12StateObjectDescHelper final
@@ -575,7 +575,7 @@ namespace
             SceneConstant,
             MaterialBuffer,
             LightBuffer,
-            Count
+            Num
         };
     };
 
@@ -586,7 +586,7 @@ namespace
             PrimitiveConstant = 0,
             VertexBuffer,
             AlbedoTex,
-            Count
+            Num
         };
 
         struct RootArguments
@@ -655,151 +655,83 @@ namespace GoldenSun
             }
         }
 
-        void Geometries(Mesh const* meshes, uint32_t num_meshes)
+        void Meshes(Mesh const* meshes, uint32_t num_meshes)
         {
-            meshes_ = meshes;
-            num_meshes_ = num_meshes;
-
-            uint32_t num_primitives = 0;
-            uint32_t num_materials = 0;
+            primitive_start_.assign(1, 0);
+            material_start_.assign(1, 0);
             for (uint32_t i = 0; i < num_meshes; ++i)
             {
-                num_primitives += meshes[i].NumPrimitives();
-                num_materials += meshes[i].NumMaterials();
-            }
-
-            // Material buffer, vb and ib, material textures
-            gpu_system_.ReallocCbvSrvUavDescBlock(
-                mesh_desc_block_, 1 + num_primitives * 2 + num_materials * std::to_underlying(PbrMaterial::TextureSlot::Num));
-
-            if ((num_lights_ != 0) && (mesh_desc_block_.NativeDescriptorHeap() != light_desc_block_.NativeDescriptorHeap()))
-            {
-                this->Lights(lights_, num_lights_);
-
-                ray_tracing_output_desc_block_ = gpu_system_.AllocCbvSrvUavDescBlock(1);
-                gpu_system_.CreateUnorderedAccessView(
-                    ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
+                auto const& mesh = meshes[i];
+                primitive_start_.emplace_back(primitive_start_.back() + mesh.NumPrimitives());
+                material_start_.emplace_back(material_start_.back() + mesh.NumMaterials());
             }
 
             {
-                buffer_gpu_handles_.clear();
-                buffer_gpu_handles_.reserve(num_primitives);
+                uint32_t const num_primitives = primitive_start_.back();
+                uint32_t const num_materials = material_start_.back();
 
-                uint32_t buffer_desc_start = 1;
+                mesh_buffers_.clear();
+                mesh_buffers_.reserve(num_primitives * 2);
+
+                material_ids_.clear();
+                material_ids_.reserve(num_primitives);
+                uint32_t material_id = 0;
+                uint32_t shader_record_offset = 0;
+
+                uint32_t constexpr num_textures = std::to_underlying(PbrMaterial::TextureSlot::Num);
+                material_texs_.clear();
+                material_texs_.reserve(num_materials * num_textures);
+
+                gpu_system_.ReallocUploadMemBlock(material_mem_block_, num_materials * sizeof(PbrMaterialBuffer));
+                auto* material_mem = material_mem_block_.CpuAddress<PbrMaterialBuffer>();
+
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 for (uint32_t i = 0; i < num_meshes; ++i)
                 {
-                    for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
+                    auto const& mesh = meshes[i];
+
+                    for (uint32_t j = 0; j < mesh.NumPrimitives(); ++j)
                     {
-                        auto [vb_cpu_handle, vb_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), buffer_desc_start + 0, descriptor_size_);
-                        GpuBuffer vb(meshes[i].VertexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
-                        gpu_system_.CreateShaderResourceView(
-                            vb, 0, meshes[i].NumVertices(j), meshes[i].VertexStrideInBytes(), vb_cpu_handle);
-                        buffer_gpu_handles_.emplace_back(std::move(vb_gpu_handle));
+                        mesh_buffers_.emplace_back(MeshBuffer{GpuBuffer(mesh.VertexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ),
+                            mesh.NumVertices(j), mesh.VertexStrideInBytes()});
+                        mesh_buffers_.emplace_back(MeshBuffer{GpuBuffer(mesh.IndexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ),
+                            mesh.NumIndices(j), mesh.IndexStrideInBytes()});
 
-                        auto [ib_cpu_handle, ib_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), buffer_desc_start + 1, descriptor_size_);
-                        GpuBuffer ib(meshes[i].IndexBuffer(j), D3D12_RESOURCE_STATE_GENERIC_READ);
-                        gpu_system_.CreateShaderResourceView(
-                            ib, 0, meshes[i].NumIndices(j) * meshes[i].IndexStrideInBytes() / 4, 0, ib_cpu_handle);
-
-                        buffer_desc_start += 2;
+                        material_ids_.emplace_back(material_id + mesh.MaterialId(j));
                     }
 
                     bool update_on_build = false;
-                    acceleration_structure_.AddBottomLevelAS(gpu_system_, build_flags, meshes[i], update_on_build, update_on_build);
-                }
-            }
+                    acceleration_structure_.AddBottomLevelAS(
+                        gpu_system_, build_flags, mesh, shader_record_offset, update_on_build, update_on_build);
 
-            {
-                material_tex_gpu_handles_.clear();
-                material_tex_gpu_handles_.reserve(num_materials);
+                    shader_record_offset += mesh.NumPrimitives() * std::to_underlying(RayType::Num);
 
-                uint32_t material_tex_desc_start = 1 + num_primitives * 2;
-
-                uint32_t material_id = 0;
-                material_buffer_ = StructuredBuffer<PbrMaterialBuffer>(gpu_system_, num_materials, 1, L"Material Buffer");
-                for (uint32_t i = 0; i < num_meshes; ++i)
-                {
-                    for (uint32_t j = 0; j < meshes[i].NumMaterials(); ++j)
+                    for (uint32_t j = 0; j < mesh.NumMaterials(); ++j)
                     {
-                        auto const& material = meshes[i].Material(j);
+                        auto const& material = mesh.Material(j);
+                        material_mem[material_id] = EngineInternal::Buffer(material);
 
-                        material_buffer_[material_id] = EngineInternal::Buffer(material);
+                        for (uint32_t k = 0; k < num_textures; ++k)
+                        {
+                            auto& texture = material_texs_.emplace_back();
+                            if (auto* slot = material.Texture(static_cast<PbrMaterial::TextureSlot>(k)))
+                            {
+                                texture = GpuTexture2D(slot, D3D12_RESOURCE_STATE_GENERIC_READ);
+                            }
+                            else
+                            {
+                                texture = default_textures_[k].Share();
+                            }
+                        }
+
                         ++material_id;
-
-                        std::array<GpuTexture2D, std::to_underlying(PbrMaterial::TextureSlot::Num)> textures;
-                        for (uint32_t t = 0; t < std::to_underlying(PbrMaterial::TextureSlot::Num); ++t)
-                        {
-                            textures[t] =
-                                GpuTexture2D(material.Texture(static_cast<PbrMaterial::TextureSlot>(t)), D3D12_RESOURCE_STATE_GENERIC_READ);
-                        }
-
-                        auto* albedo_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Albedo)];
-                        if (!*albedo_tex)
-                        {
-                            albedo_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Albedo)];
-                        }
-                        auto* metallic_glossiness_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)];
-                        if (!*metallic_glossiness_tex)
-                        {
-                            metallic_glossiness_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)];
-                        }
-                        auto* emissive_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Emissive)];
-                        if (!*emissive_tex)
-                        {
-                            emissive_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Emissive)];
-                        }
-                        auto* normal_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Normal)];
-                        if (!*normal_tex)
-                        {
-                            normal_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Normal)];
-                        }
-                        auto* occlusion_tex = &textures[std::to_underlying(PbrMaterial::TextureSlot::Occlusion)];
-                        if (!*occlusion_tex)
-                        {
-                            occlusion_tex = &default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Occlusion)];
-                        }
-
-                        auto [albedo_cpu_handle, albedo_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 0, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*albedo_tex, albedo_cpu_handle);
-                        material_tex_gpu_handles_.emplace_back(std::move(albedo_gpu_handle));
-
-                        auto [metallic_glossiness_cpu_handle, metallic_glossiness_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 1, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*metallic_glossiness_tex, metallic_glossiness_cpu_handle);
-
-                        auto [emissive_cpu_handle, emissive_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 2, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*emissive_tex, emissive_cpu_handle);
-
-                        auto [normal_cpu_handle, normal_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 3, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*normal_tex, normal_cpu_handle);
-
-                        auto [occlusion_cpu_handle, occlusion_gpu_handle] = OffsetHandle(
-                            mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), material_tex_desc_start + 4, descriptor_size_);
-                        gpu_system_.CreateShaderResourceView(*occlusion_tex, occlusion_cpu_handle);
-
-                        material_tex_desc_start += std::to_underlying(PbrMaterial::TextureSlot::Num);
                     }
-                }
-                material_buffer_.UploadToGpu();
 
-                gpu_system_.CreateShaderResourceView(material_buffer_.Buffer(), 0, num_materials, sizeof(PbrMaterialBuffer),
-                    OffsetHandle(mesh_desc_block_.CpuHandle(), 0, descriptor_size_));
-            }
-
-            this->BuildShaderTables(meshes, num_meshes);
-
-            for (uint32_t i = 0; i < num_meshes; ++i)
-            {
-                for (uint32_t j = 0; j < meshes[i].NumInstances(); ++j)
-                {
-                    acceleration_structure_.AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&meshes[i].Transform(j)));
+                    for (uint32_t j = 0; j < mesh.NumInstances(); ++j)
+                    {
+                        acceleration_structure_.AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&mesh.Transform(j)));
+                    }
                 }
             }
 
@@ -808,9 +740,25 @@ namespace GoldenSun
                     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
                 bool allow_update = false;
                 bool perform_update_on_build = false;
-                acceleration_structure_.ResetTopLevelAS(
+                acceleration_structure_.AssignTopLevelAS(
                     gpu_system_, build_flags, allow_update, perform_update_on_build, L"Top-Level Acceleration Structure");
             }
+
+            mesh_desc_dirty_ = true;
+        }
+
+        void Lights(PointLight const* lights, uint32_t num_lights)
+        {
+            num_lights_ = num_lights;
+
+            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(LightBuffer));
+            auto* light_mem = light_mem_block_.CpuAddress<LightBuffer>();
+            for (uint32_t i = 0; i < num_lights; ++i)
+            {
+                light_mem[i] = EngineInternal::Buffer(lights[i]);
+            }
+
+            light_desc_dirty_ = true;
         }
 
         void Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
@@ -824,36 +772,6 @@ namespace GoldenSun
             far_plane_ = far_plane;
         }
 
-        void Lights(PointLight const* lights, uint32_t num_lights)
-        {
-            lights_ = lights;
-            num_lights_ = num_lights;
-
-            gpu_system_.ReallocCbvSrvUavDescBlock(light_desc_block_, 1);
-
-            if ((num_meshes_ != 0) && (light_desc_block_.NativeDescriptorHeap() != mesh_desc_block_.NativeDescriptorHeap()))
-            {
-                this->Geometries(meshes_, num_meshes_);
-
-                ray_tracing_output_desc_block_ = gpu_system_.AllocCbvSrvUavDescBlock(1);
-                gpu_system_.CreateUnorderedAccessView(
-                    ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
-            }
-
-            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(LightBuffer));
-            auto* light_mem = light_mem_block_.CpuAddress<LightBuffer>();
-            for (uint32_t i = 0; i < num_lights; ++i)
-            {
-                light_mem[i] = EngineInternal::Buffer(lights[i]);
-            }
-
-            assert(light_mem_block_.Offset() / sizeof(LightBuffer) * sizeof(LightBuffer) == light_mem_block_.Offset());
-            gpu_system_.CreateShaderResourceView(
-                GpuBuffer(reinterpret_cast<ID3D12Resource*>(light_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
-                light_mem_block_.Offset() / sizeof(LightBuffer), num_lights, sizeof(LightBuffer),
-                OffsetHandle(light_desc_block_.CpuHandle(), 0, descriptor_size_));
-        }
-
         void Render(ID3D12GraphicsCommandList4* d3d12_cmd_list)
         {
             GpuCommandList cmd_list(d3d12_cmd_list);
@@ -861,6 +779,7 @@ namespace GoldenSun
             uint32_t const frame_index = gpu_system_.FrameIndex();
 
             acceleration_structure_.Build(cmd_list, frame_index);
+            this->BuildDescHeap();
 
             d3d12_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
@@ -877,10 +796,10 @@ namespace GoldenSun
                     std::to_underlying(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
             }
 
-            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(mesh_desc_block_.NativeDescriptorHeap())};
+            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(output_desc_block_.NativeDescriptorHeap())};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
-            d3d12_cmd_list->SetComputeRootDescriptorTable(
-                std::to_underlying(GlobalRootSignature::Slot::OutputView), ray_tracing_output_desc_block_.GpuHandle());
+            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::OutputView),
+                OffsetHandle(output_desc_block_.GpuHandle(), 0, descriptor_size_));
             d3d12_cmd_list->SetComputeRootShaderResourceView(std::to_underlying(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_.TopLevelASBuffer().GpuVirtualAddress());
             d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::MaterialBuffer),
@@ -920,13 +839,13 @@ namespace GoldenSun
             ray_tracing_output_ = gpu_system_.CreateTexture2D(width_, height_, 1, format_, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"GoldenSun Output");
 
-            ray_tracing_output_desc_block_ = gpu_system_.AllocCbvSrvUavDescBlock(1);
-            gpu_system_.CreateUnorderedAccessView(ray_tracing_output_, LinearFormatOf(format_), ray_tracing_output_desc_block_.CpuHandle());
+            output_desc_dirty_ = true;
         }
 
         void ReleaseWindowSizeDependentResources() noexcept
         {
             ray_tracing_output_.Reset();
+            output_desc_dirty_ = true;
         }
 
         ComPtr<ID3D12RootSignature> SerializeAndCreateRayTracingRootSignature(D3D12_ROOT_SIGNATURE_DESC const& desc)
@@ -1060,88 +979,168 @@ namespace GoldenSun
             TIFHR(d3d12_device->CreateStateObject(&state_obj_desc, UuidOf<ID3D12StateObject>(), state_obj_.PutVoid()));
         }
 
-        void BuildShaderTables(Mesh const* meshes, uint32_t num_meshes)
+        void BuildDescHeap()
         {
-            void* ray_gen_shader_identifier;
-            void* hit_group_shader_identifiers[std::to_underlying(RayType::Num)];
-            void* miss_shader_identifiers[std::to_underlying(RayType::Num)];
-            uint32_t shader_identifier_size;
+            uint32_t const num_primitives = primitive_start_.back();
+            uint32_t const num_materials = material_start_.back();
+
+            for (;;)
             {
-                ComPtr<ID3D12StateObjectProperties> state_obj_properties = state_obj_.As<ID3D12StateObjectProperties>();
-                ray_gen_shader_identifier = state_obj_properties->GetShaderIdentifier(c_ray_gen_shader_name);
-                for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
+                if (output_desc_dirty_)
                 {
-                    miss_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_miss_shader_names[i]);
+                    gpu_system_.ReallocCbvSrvUavDescBlock(output_desc_block_, 1);
                 }
-                for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
+                if (mesh_desc_dirty_)
                 {
-                    hit_group_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_hit_group_names[i]);
+                    // material buffer, vb and ib, material textures
+                    gpu_system_.ReallocCbvSrvUavDescBlock(
+                        mesh_desc_block_, 1 + num_primitives * 2 + num_materials * std::to_underlying(PbrMaterial::TextureSlot::Num));
                 }
-                shader_identifier_size = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+                if (light_desc_dirty_)
+                {
+                    gpu_system_.ReallocCbvSrvUavDescBlock(light_desc_block_, 1);
+                }
+
+                if ((output_desc_block_.NativeDescriptorHeap() != mesh_desc_block_.NativeDescriptorHeap()) ||
+                    (output_desc_block_.NativeDescriptorHeap() != light_desc_block_.NativeDescriptorHeap()))
+                {
+                    output_desc_dirty_ = true;
+                    mesh_desc_dirty_ = true;
+                    light_desc_dirty_ = true;
+                }
+                else
+                {
+                    break;
+                }
             }
 
+            if (output_desc_dirty_)
             {
-                uint32_t const num_shader_records = 1;
-                uint32_t const shader_record_size = shader_identifier_size;
-                ShaderTable ray_gen_shader_table(gpu_system_, num_shader_records, shader_record_size, L"RayGenShaderTable");
-                ray_gen_shader_table.push_back(ShaderRecord(ray_gen_shader_identifier, shader_identifier_size));
-
-                ray_gen_shader_table.ExtractBuffer(ray_gen_shader_table_);
-            }
-            {
-                uint32_t const num_shader_records = std::to_underlying(RayType::Num);
-                uint32_t const shader_record_size = shader_identifier_size;
-                ShaderTable miss_shader_table(gpu_system_, num_shader_records, shader_record_size, L"MissShaderTable");
-                for (auto* miss_shader_id : miss_shader_identifiers)
-                {
-                    miss_shader_table.push_back(ShaderRecord(miss_shader_id, shader_identifier_size));
-                }
-
-                miss_shader_table_stride_ = miss_shader_table.ShaderRecordSize();
-                miss_shader_table.ExtractBuffer(miss_shader_table_);
+                gpu_system_.CreateUnorderedAccessView(
+                    ray_tracing_output_, LinearFormatOf(format_), OffsetHandle(output_desc_block_.CpuHandle(), 0, descriptor_size_));
+                output_desc_dirty_ = false;
             }
 
+            if (mesh_desc_dirty_)
             {
-                uint32_t num_shader_records = 0;
-                for (uint32_t i = 0; i < num_meshes; ++i)
+                uint32_t slot = 0;
+
+                gpu_system_.CreateShaderResourceView(
+                    GpuBuffer(reinterpret_cast<ID3D12Resource*>(material_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
+                    material_mem_block_.Offset() / sizeof(PbrMaterialBuffer), num_materials, sizeof(PbrMaterialBuffer),
+                    OffsetHandle(mesh_desc_block_.CpuHandle(), slot, descriptor_size_));
+                ++slot;
+
+                std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> buffer_gpu_handles;
+                buffer_gpu_handles.resize(num_primitives);
+                for (uint32_t i = 0; i < num_primitives; ++i)
                 {
-                    num_shader_records += meshes[i].NumPrimitives() * std::to_underlying(RayType::Num);
+                    auto const& vb = mesh_buffers_[i * 2 + 0];
+                    auto [vb_cpu_handle, vb_gpu_handle] =
+                        OffsetHandle(mesh_desc_block_.CpuHandle(), mesh_desc_block_.GpuHandle(), slot + 0, descriptor_size_);
+                    gpu_system_.CreateShaderResourceView(vb.buffer, 0, vb.num_elements, vb.stride, vb_cpu_handle);
+                    buffer_gpu_handles[i] = std::move(vb_gpu_handle);
+
+                    auto const& ib = mesh_buffers_[i * 2 + 1];
+                    auto ib_cpu_handle = OffsetHandle(mesh_desc_block_.CpuHandle(), slot + 1, descriptor_size_);
+                    gpu_system_.CreateShaderResourceView(ib.buffer, 0, ib.num_elements * ib.stride / 4, 0, ib_cpu_handle);
+
+                    slot += 2;
                 }
 
-                uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
-                ShaderTable hit_group_shader_table(gpu_system_, num_shader_records, shader_record_size, L"HitGroupShaderTable");
-
-                uint32_t buffer_desc_start = 0;
-                uint32_t material_tex_desc_start = 0;
-                uint32_t material_id = 0;
-                for (uint32_t i = 0; i < num_meshes; ++i)
+                std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> material_tex_gpu_handles;
+                material_tex_gpu_handles.resize(num_materials);
+                for (uint32_t i = 0; i < num_materials; ++i)
                 {
-                    auto& geometry = acceleration_structure_.BottomLevelAS(i);
-                    uint32_t const shader_record_offset = hit_group_shader_table.NumShaderRecords();
-                    geometry.InstanceContributionToHitGroupIndex(shader_record_offset);
-
-                    for (uint32_t j = 0; j < meshes[i].NumPrimitives(); ++j)
+                    uint32_t constexpr num_textures = std::to_underlying(PbrMaterial::TextureSlot::Num);
+                    for (uint32_t j = 0; j < num_textures; ++j)
                     {
-                        LocalRootSignature::RootArguments root_arguments;
-                        root_arguments.cb.material_id = material_id + meshes[i].MaterialId(j);
-                        root_arguments.buffer_gpu_handle = buffer_gpu_handles_[buffer_desc_start];
-                        root_arguments.texture_gpu_handle = material_tex_gpu_handles_[material_tex_desc_start];
-
-                        for (auto& hit_group_shader_identifier : hit_group_shader_identifiers)
-                        {
-                            hit_group_shader_table.push_back(
-                                ShaderRecord(hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
-                        }
-
-                        ++buffer_desc_start;
-                        ++material_tex_desc_start;
+                        auto tex_cpu_handle = OffsetHandle(mesh_desc_block_.CpuHandle(), slot + j, descriptor_size_);
+                        gpu_system_.CreateShaderResourceView(material_texs_[i * num_textures + j], tex_cpu_handle);
                     }
 
-                    material_id += meshes[i].NumMaterials();
+                    material_tex_gpu_handles[i] = OffsetHandle(mesh_desc_block_.GpuHandle(), slot + 0, descriptor_size_);
+
+                    slot += num_textures;
                 }
 
-                hit_group_shader_table_stride_ = hit_group_shader_table.ShaderRecordSize();
-                hit_group_shader_table.ExtractBuffer(hit_group_shader_table_);
+                void* ray_gen_shader_identifier;
+                void* hit_group_shader_identifiers[std::to_underlying(RayType::Num)];
+                void* miss_shader_identifiers[std::to_underlying(RayType::Num)];
+                uint32_t shader_identifier_size;
+                {
+                    ComPtr<ID3D12StateObjectProperties> state_obj_properties = state_obj_.As<ID3D12StateObjectProperties>();
+                    ray_gen_shader_identifier = state_obj_properties->GetShaderIdentifier(c_ray_gen_shader_name);
+                    for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
+                    {
+                        miss_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_miss_shader_names[i]);
+                    }
+                    for (uint32_t i = 0; i < std::to_underlying(RayType::Num); i++)
+                    {
+                        hit_group_shader_identifiers[i] = state_obj_properties->GetShaderIdentifier(c_hit_group_names[i]);
+                    }
+                    shader_identifier_size = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+                }
+
+                {
+                    uint32_t const num_shader_records = 1;
+                    uint32_t const shader_record_size = shader_identifier_size;
+                    ShaderTable ray_gen_shader_table(gpu_system_, num_shader_records, shader_record_size, L"RayGenShaderTable");
+                    ray_gen_shader_table.push_back(ShaderRecord(ray_gen_shader_identifier, shader_identifier_size));
+
+                    ray_gen_shader_table.ExtractBuffer(ray_gen_shader_table_);
+                }
+                {
+                    uint32_t constexpr num_shader_records = std::to_underlying(RayType::Num);
+                    uint32_t const shader_record_size = shader_identifier_size;
+                    ShaderTable miss_shader_table(gpu_system_, num_shader_records, shader_record_size, L"MissShaderTable");
+                    for (auto* miss_shader_id : miss_shader_identifiers)
+                    {
+                        miss_shader_table.push_back(ShaderRecord(miss_shader_id, shader_identifier_size));
+                    }
+
+                    miss_shader_table_stride_ = miss_shader_table.ShaderRecordSize();
+                    miss_shader_table.ExtractBuffer(miss_shader_table_);
+                }
+
+                {
+                    uint32_t const num_shader_records = num_primitives * std::to_underlying(RayType::Num);
+                    uint32_t const shader_record_size = shader_identifier_size + sizeof(LocalRootSignature::RootArguments);
+                    ShaderTable hit_group_shader_table(gpu_system_, num_shader_records, shader_record_size, L"HitGroupShaderTable");
+
+                    for (uint32_t i = 0; i < primitive_start_.size() - 1; ++i)
+                    {
+                        for (uint32_t j = 0; j < primitive_start_[i + 1] - primitive_start_[i]; ++j)
+                        {
+                            LocalRootSignature::RootArguments root_arguments;
+                            root_arguments.cb.material_id = material_ids_[material_start_[i] + j];
+                            root_arguments.buffer_gpu_handle = buffer_gpu_handles[primitive_start_[i] + j];
+                            root_arguments.texture_gpu_handle = material_tex_gpu_handles[root_arguments.cb.material_id];
+
+                            for (auto& hit_group_shader_identifier : hit_group_shader_identifiers)
+                            {
+                                hit_group_shader_table.push_back(ShaderRecord(
+                                    hit_group_shader_identifier, shader_identifier_size, &root_arguments, sizeof(root_arguments)));
+                            }
+                        }
+                    }
+
+                    hit_group_shader_table_stride_ = hit_group_shader_table.ShaderRecordSize();
+                    hit_group_shader_table.ExtractBuffer(hit_group_shader_table_);
+                }
+
+                mesh_desc_dirty_ = false;
+            }
+
+            if (light_desc_dirty_)
+            {
+                assert(light_mem_block_.Offset() / sizeof(LightBuffer) * sizeof(LightBuffer) == light_mem_block_.Offset());
+                gpu_system_.CreateShaderResourceView(
+                    GpuBuffer(reinterpret_cast<ID3D12Resource*>(light_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
+                    light_mem_block_.Offset() / sizeof(LightBuffer), num_lights_, sizeof(LightBuffer),
+                    OffsetHandle(light_desc_block_.CpuHandle(), 0, descriptor_size_));
+
+                light_desc_dirty_ = false;
             }
         }
 
@@ -1161,25 +1160,36 @@ namespace GoldenSun
 
         uint32_t descriptor_size_;
 
-        // TODO: Find a better solution
-        Mesh const* meshes_ = nullptr;
-        uint32_t num_meshes_ = 0;
-        PointLight const* lights_ = nullptr;
-        uint32_t num_lights_ = 0;
-
+        GpuDescriptorBlock output_desc_block_;
         GpuDescriptorBlock mesh_desc_block_;
         GpuDescriptorBlock light_desc_block_;
 
-        std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> buffer_gpu_handles_;
-        std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> material_tex_gpu_handles_;
+        bool output_desc_dirty_ = true;
+        bool mesh_desc_dirty_ = true;
+        bool light_desc_dirty_ = true;
 
-        StructuredBuffer<PbrMaterialBuffer> material_buffer_;
+        std::vector<uint32_t> primitive_start_;
+        std::vector<uint32_t> material_start_;
+        std::vector<uint32_t> material_ids_;
+        uint32_t num_lights_ = 0;
+
+        struct MeshBuffer
+        {
+            GpuBuffer buffer;
+            uint32_t num_elements;
+            uint32_t stride;
+        };
+        std::vector<MeshBuffer> mesh_buffers_;
+        std::vector<GpuTexture2D> material_texs_;
+
+        GpuMemoryBlock material_mem_block_;
         std::array<GpuTexture2D, std::to_underlying(PbrMaterial::TextureSlot::Num)> default_textures_;
+
+        GpuMemoryBlock light_mem_block_;
 
         RaytracingAccelerationStructureManager acceleration_structure_;
 
         GpuTexture2D ray_tracing_output_;
-        GpuDescriptorBlock ray_tracing_output_desc_block_;
 
         enum class RayType : uint32_t
         {
@@ -1208,8 +1218,6 @@ namespace GoldenSun
         float fov_;
         float near_plane_;
         float far_plane_;
-
-        GpuMemoryBlock light_mem_block_;
     };
 
 
@@ -1245,19 +1253,19 @@ namespace GoldenSun
         return impl_->RenderTarget(width, height, format);
     }
 
-    void Engine::Geometries(Mesh const* meshes, uint32_t num_meshes)
+    void Engine::Meshes(Mesh const* meshes, uint32_t num_meshes)
     {
-        return impl_->Geometries(meshes, num_meshes);
-    }
-
-    void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
-    {
-        return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        return impl_->Meshes(meshes, num_meshes);
     }
 
     void Engine::Lights(PointLight const* lights, uint32_t num_lights)
     {
         return impl_->Lights(lights, num_lights);
+    }
+
+    void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
+    {
+        return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
     }
 
     void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)

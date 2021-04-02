@@ -85,7 +85,7 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddInstance(world);
     }
 
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
@@ -183,7 +183,7 @@ TEST_F(RayCastingTest, MultipleObjects)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
@@ -287,7 +287,7 @@ TEST_F(RayCastingTest, Instancing)
         mesh1.AddInstance(world1);
     }
 
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
@@ -337,7 +337,7 @@ TEST_F(RayCastingTest, Mesh)
                                     XMMatrixTranslation(+1.8f, 0, 0));
         mesh.AddInstance(world);
     }
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
@@ -396,7 +396,7 @@ TEST_F(RayCastingTest, MeshShadowed)
                                     XMMatrixTranslation(+1.8f, 0, 0));
         mesh.AddInstance(world);
     }
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
@@ -451,7 +451,7 @@ TEST_F(RayCastingTest, Transparent)
         XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.6f, 0.6f, 0.6f));
         mesh.Transform(0, world);
     }
-    golden_sun_engine_.Geometries(meshes.data(), static_cast<uint32_t>(meshes.size()));
+    golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
     auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());

@@ -50,6 +50,14 @@ namespace GoldenSun
 
         virtual ~Impl() = default;
 
+        void Share(Impl& new_impl) const
+        {
+            new_impl.resource_ = resource_;
+            new_impl.desc_ = desc_;
+            new_impl.heap_type_ = heap_type_;
+            new_impl.curr_state_ = curr_state_;
+        }
+
         explicit operator bool() const noexcept
         {
             return resource_ ? true : false;
@@ -154,6 +162,13 @@ namespace GoldenSun
     {
     }
 
+    GpuBuffer GpuBuffer::Share() const
+    {
+        GpuBuffer buffer;
+        impl_->Share(*buffer.impl_);
+        return buffer;
+    }
+
     GpuBuffer::operator bool() const noexcept
     {
         return impl_ && impl_->operator bool();
@@ -251,6 +266,12 @@ namespace GoldenSun
             this->Reset();
         }
 
+        void Share(Impl& new_impl) const
+        {
+            GpuBuffer::Impl::Share(new_impl);
+            new_impl.mapped_data_ = mapped_data_;
+        }
+
         void Reset() noexcept override
         {
             if (resource_)
@@ -275,6 +296,13 @@ namespace GoldenSun
     GpuUploadBuffer::~GpuUploadBuffer() noexcept = default;
     GpuUploadBuffer::GpuUploadBuffer(GpuUploadBuffer&& other) noexcept = default;
     GpuUploadBuffer& GpuUploadBuffer::operator=(GpuUploadBuffer&& other) noexcept = default;
+
+    GpuUploadBuffer GpuUploadBuffer::Share() const
+    {
+        GpuUploadBuffer buffer;
+        impl_->Share(*buffer.impl_);
+        return buffer;
+    }
 
     void GpuUploadBuffer::Reset() noexcept
     {
@@ -307,6 +335,12 @@ namespace GoldenSun
             this->Reset();
         }
 
+        void Share(Impl& new_impl) const
+        {
+            GpuBuffer::Impl::Share(new_impl);
+            new_impl.mapped_data_ = mapped_data_;
+        }
+
         void Reset() noexcept override
         {
             if (resource_)
@@ -331,6 +365,13 @@ namespace GoldenSun
     GpuReadbackBuffer::~GpuReadbackBuffer() noexcept = default;
     GpuReadbackBuffer::GpuReadbackBuffer(GpuReadbackBuffer&& other) noexcept = default;
     GpuReadbackBuffer& GpuReadbackBuffer::operator=(GpuReadbackBuffer&& other) noexcept = default;
+
+    GpuReadbackBuffer GpuReadbackBuffer::Share() const
+    {
+        GpuReadbackBuffer buffer;
+        impl_->Share(*buffer.impl_);
+        return buffer;
+    }
 
     void GpuReadbackBuffer::Reset() noexcept
     {
