@@ -26,6 +26,7 @@ namespace GoldenSun
         {
             return vertex_format_;
         }
+
         uint32_t VertexStrideInBytes() const noexcept
         {
             return vertex_stride_in_bytes_;
@@ -35,6 +36,7 @@ namespace GoldenSun
         {
             return index_format_;
         }
+
         uint32_t IndexStrideInBytes() const noexcept
         {
             return index_stride_in_bytes_;
@@ -94,6 +96,7 @@ namespace GoldenSun
         {
             return primitives_[primitive_id].vb.count;
         }
+
         ID3D12Resource* VertexBuffer(uint32_t primitive_id) const noexcept
         {
             return primitives_[primitive_id].vb.resource.Get();
@@ -103,9 +106,15 @@ namespace GoldenSun
         {
             return primitives_[primitive_id].ib.count;
         }
+
         ID3D12Resource* IndexBuffer(uint32_t primitive_id) const noexcept
         {
             return primitives_[primitive_id].ib.resource.Get();
+        }
+
+        void MaterialId(uint32_t primitive_id, uint32_t id) noexcept
+        {
+            primitives_[primitive_id].material_id = id;
         }
 
         uint32_t MaterialId(uint32_t primitive_id) const noexcept
@@ -113,13 +122,10 @@ namespace GoldenSun
             return primitives_[primitive_id].material_id;
         }
 
-        uint32_t AddInstance(XMFLOAT4X4 const& transform)
+        uint32_t AddInstance(MeshInstance const& instance)
         {
             uint32_t const instance_id = static_cast<uint32_t>(instances_.size());
-
-            auto& new_instance = instances_.emplace_back();
-            new_instance.transform = transform;
-
+            instances_.emplace_back(instance);
             return instance_id;
         }
 
@@ -128,14 +134,14 @@ namespace GoldenSun
             return static_cast<uint32_t>(instances_.size());
         }
 
-        XMFLOAT4X4 const& Transform(uint32_t instance_id) const noexcept
+        MeshInstance& Instance(uint32_t instance_id) noexcept
         {
-            return instances_[instance_id].transform;
+            return instances_[instance_id];
         }
 
-        void Transform(uint32_t instance_id, XMFLOAT4X4 const& transform) noexcept
+        MeshInstance const& Instance(uint32_t instance_id) const noexcept
         {
-            instances_[instance_id].transform = transform;
+            return instances_[instance_id];
         }
 
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs() const
@@ -180,15 +186,10 @@ namespace GoldenSun
             D3D12_RAYTRACING_GEOMETRY_FLAGS flags;
         };
 
-        struct Instance
-        {
-            XMFLOAT4X4 transform;
-        };
-
     private:
         std::vector<PbrMaterial> materials_;
         std::vector<Primitive> primitives_;
-        std::vector<Instance> instances_;
+        std::vector<MeshInstance> instances_;
         DXGI_FORMAT vertex_format_;
         uint32_t vertex_stride_in_bytes_;
         DXGI_FORMAT index_format_;
@@ -252,12 +253,12 @@ namespace GoldenSun
         return impl_->NumMaterials();
     }
 
-    PbrMaterial const& Mesh::Material(uint32_t material_id) const noexcept
+    PbrMaterial& Mesh::Material(uint32_t material_id) noexcept
     {
         return impl_->Material(material_id);
     }
 
-    PbrMaterial& Mesh::Material(uint32_t material_id) noexcept
+    PbrMaterial const& Mesh::Material(uint32_t material_id) const noexcept
     {
         return impl_->Material(material_id);
     }
@@ -297,14 +298,19 @@ namespace GoldenSun
         return impl_->IndexBuffer(primitive_id);
     }
 
+    void Mesh::MaterialId(uint32_t primitive_id, uint32_t id) noexcept
+    {
+        impl_->MaterialId(primitive_id, id);
+    }
+
     uint32_t Mesh::MaterialId(uint32_t primitive_id) const noexcept
     {
         return impl_->MaterialId(primitive_id);
     }
 
-    uint32_t Mesh::AddInstance(XMFLOAT4X4 const& transform)
+    uint32_t Mesh::AddInstance(MeshInstance const& instance)
     {
-        return impl_->AddInstance(transform);
+        return impl_->AddInstance(instance);
     }
 
     uint32_t Mesh::NumInstances() const noexcept
@@ -312,14 +318,14 @@ namespace GoldenSun
         return impl_->NumInstances();
     }
 
-    XMFLOAT4X4 const& Mesh::Transform(uint32_t instance_id) const noexcept
+    MeshInstance& Mesh::Instance(uint32_t instance_id) noexcept
     {
-        return impl_->Transform(instance_id);
+        return impl_->Instance(instance_id);
     }
 
-    void Mesh::Transform(uint32_t instance_id, XMFLOAT4X4 const& transform) noexcept
+    MeshInstance const& Mesh::Instance(uint32_t instance_id) const noexcept
     {
-        impl_->Transform(instance_id, transform);
+        return impl_->Instance(instance_id);
     }
 
 

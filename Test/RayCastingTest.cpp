@@ -32,23 +32,25 @@ TEST_F(RayCastingTest, SingleObject)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {2.0f, 2.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.0f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
+    {
+        PointLight light;
+        light.Position() = {-2.0f, 1.8f, -3.0f};
+        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Falloff() = {1, 0, 0};
+        light.Shadowing() = false;
 
-    PointLight light;
-    light.Position({-2.0f, 1.8f, -3.0f});
-    light.Color({1.0f, 0.8f, 0.0f});
-    light.Falloff({1, 0, 0});
-    light.Shadowing(false);
-    golden_sun_engine_.Lights(&light, 1);
+        golden_sun_engine_.Lights(&light, 1);
+    }
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -66,7 +68,7 @@ TEST_F(RayCastingTest, SingleObject)
         3, 1, 0, 2, 1, 3, 6, 4, 5, 7, 4, 6, 3, 4, 7, 0, 4, 3, 1, 6, 5, 2, 6, 1, 0, 5, 4, 1, 5, 0, 2, 7, 6, 3, 7, 2};
 
     PbrMaterial mtl;
-    mtl.Albedo({1.0f, 1.0f, 1.0f});
+    mtl.Albedo() = {1.0f, 1.0f, 1.0f};
 
     ComPtr<ID3D12Resource> vb = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer").NativeResource());
@@ -80,9 +82,9 @@ TEST_F(RayCastingTest, SingleObject)
         mesh.AddMaterial(mtl);
         mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
 
-        XMFLOAT4X4 world;
-        XMStoreFloat4x4(&world, XMMatrixIdentity());
-        mesh.AddInstance(world);
+        MeshInstance instance;
+        XMStoreFloat4x4(&instance.transform, XMMatrixIdentity());
+        mesh.AddInstance(std::move(instance));
     }
 
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
@@ -106,23 +108,25 @@ TEST_F(RayCastingTest, MultipleObjects)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {2.0f, 2.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.0f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
+    {
+        PointLight light;
+        light.Position() = {2.0f, 1.8f, -3.0f};
+        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Falloff() = {1, 0, 0};
+        light.Shadowing() = false;
 
-    PointLight light;
-    light.Position({2.0f, 1.8f, -3.0f});
-    light.Color({1.0f, 0.8f, 0.0f});
-    light.Falloff({1, 0, 0});
-    light.Shadowing(false);
-    golden_sun_engine_.Lights(&light, 1);
+        golden_sun_engine_.Lights(&light, 1);
+    }
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -150,8 +154,8 @@ TEST_F(RayCastingTest, MultipleObjects)
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
     PbrMaterial mtls[2];
-    mtls[0].Albedo({1.0f, 1.0f, 1.0f});
-    mtls[1].Albedo({0.4f, 1.0f, 0.3f});
+    mtls[0].Albedo() = {1.0f, 1.0f, 1.0f};
+    mtls[1].Albedo() = {0.4f, 1.0f, 0.3f};
 
     ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
@@ -169,18 +173,18 @@ TEST_F(RayCastingTest, MultipleObjects)
         mesh0.AddMaterial(mtls[0]);
         mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
 
-        XMFLOAT4X4 world0;
-        XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
-        mesh0.AddInstance(world0);
+        MeshInstance instance0;
+        XMStoreFloat4x4(&instance0.transform, XMMatrixTranslation(-1.5f, 0, 0));
+        mesh0.AddInstance(std::move(instance0));
 
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh1.AddMaterial(mtls[1]);
         mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
-        XMFLOAT4X4 world1;
-        XMStoreFloat4x4(&world1, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
-        mesh1.AddInstance(world1);
+        MeshInstance instance1;
+        XMStoreFloat4x4(&instance1.transform, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
+        mesh1.AddInstance(instance1);
     }
 
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
@@ -204,23 +208,25 @@ TEST_F(RayCastingTest, Instancing)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {2.0f, 2.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.0f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
+    {
+        PointLight light;
+        light.Position() = {2.0f, 1.8f, -3.0f};
+        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Falloff() = {1, 0, 0};
+        light.Shadowing() = false;
 
-    PointLight light;
-    light.Position({2.0f, 1.8f, -3.0f});
-    light.Color({1.0f, 0.8f, 0.0f});
-    light.Falloff({1, 0, 0});
-    light.Shadowing(false);
-    golden_sun_engine_.Lights(&light, 1);
+        golden_sun_engine_.Lights(&light, 1);
+    }
 
     Vertex const cube_vertices[] = {
         {{-1.0f, +1.0f, -1.0f}, {+0.880476236f, +0.115916885f, -0.279848129f, -0.364705175f}, {-1.0f, +1.0f}},
@@ -248,9 +254,9 @@ TEST_F(RayCastingTest, Instancing)
     Index const tetrahedron_indices[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
 
     PbrMaterial mtls[3];
-    mtls[0].Albedo({1.0f, 1.0f, 1.0f});
-    mtls[1].Albedo({0.4f, 1.0f, 0.3f});
-    mtls[2].Albedo({0.8f, 0.4f, 0.6f});
+    mtls[0].Albedo() = {1.0f, 1.0f, 1.0f};
+    mtls[1].Albedo() = {0.4f, 1.0f, 0.3f};
+    mtls[2].Albedo() = {0.8f, 0.4f, 0.6f};
 
     ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
         gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
@@ -270,21 +276,22 @@ TEST_F(RayCastingTest, Instancing)
         mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
         mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
 
-        XMFLOAT4X4 world0;
-        XMStoreFloat4x4(&world0, XMMatrixTranslation(-1.5f, 0, 0));
-        mesh0.AddInstance(world0);
+        MeshInstance instance0;
+        XMStoreFloat4x4(&instance0.transform, XMMatrixTranslation(-1.5f, 0, 0));
+        mesh0.AddInstance(std::move(instance0));
 
-        XMStoreFloat4x4(&world0, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixRotationX(0.8f) * XMMatrixTranslation(-1.5f, 0, -1.8f));
-        mesh0.AddInstance(world0);
+        XMStoreFloat4x4(
+            &instance0.transform, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixRotationX(0.8f) * XMMatrixTranslation(-1.5f, 0, -1.8f));
+        mesh0.AddInstance(std::move(instance0));
 
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh1.AddMaterial(mtls[2]);
         mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
 
-        XMFLOAT4X4 world1;
-        XMStoreFloat4x4(&world1, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
-        mesh1.AddInstance(world1);
+        MeshInstance instance1;
+        XMStoreFloat4x4(&instance1.transform, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
+        mesh1.AddInstance(std::move(instance1));
     }
 
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
@@ -308,34 +315,37 @@ TEST_F(RayCastingTest, Mesh)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {2.0f, 2.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.0f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
+    {
+        PointLight light;
+        light.Position() = {2.0f, 0.0f, -2.0f};
+        light.Color() = {20.0f, 24.0f, 20.0f};
+        light.Falloff() = {1, 0, 1};
+        light.Shadowing() = false;
 
-    PointLight light;
-    light.Position({2.0f, 0.0f, -2.0f});
-    light.Color({20.0f, 24.0f, 20.0f});
-    light.Falloff({1, 0, 1});
-    light.Shadowing(false);
-    golden_sun_engine_.Lights(&light, 1);
+        golden_sun_engine_.Lights(&light, 1);
+    }
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)
     {
-        XMFLOAT4X4 world;
-        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixRotationY(0.4f) * XMMatrixTranslation(-1.8f, 0.5f, 0));
-        mesh.AddInstance(world);
+        MeshInstance instance;
+        XMStoreFloat4x4(&instance.transform,
+            XMLoadFloat4x4(&mesh.Instance(0).transform) * XMMatrixRotationY(0.4f) * XMMatrixTranslation(-1.8f, 0.5f, 0));
+        mesh.AddInstance(std::move(instance));
 
-        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.8f, 0.8f, 0.8f) * XMMatrixRotationY(-0.8f) *
-                                    XMMatrixTranslation(+1.8f, 0, 0));
-        mesh.AddInstance(world);
+        XMStoreFloat4x4(&instance.transform, XMLoadFloat4x4(&mesh.Instance(0).transform) * XMMatrixScaling(0.8f, 0.8f, 0.8f) *
+                                                 XMMatrixRotationY(-0.8f) * XMMatrixTranslation(+1.8f, 0, 0));
+        mesh.AddInstance(std::move(instance));
     }
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
@@ -358,43 +368,45 @@ TEST_F(RayCastingTest, MeshShadowed)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {2.0f, 2.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.0f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {2.0f, 2.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.0f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
-
-    std::vector<PointLight> lights;
     {
+        std::vector<PointLight> lights;
+
         auto& light0 = lights.emplace_back();
-        light0.Position({2.0f, 0.0f, -2.0f});
-        light0.Color({20.0f, 24.0f, 20.0f});
-        light0.Falloff({1, 0, 1});
-        light0.Shadowing(true);
+        light0.Position() = {2.0f, 0.0f, -2.0f};
+        light0.Color() = {20.0f, 24.0f, 20.0f};
+        light0.Falloff() = {1, 0, 1};
+        light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
-        light1.Position({-2.0f, 1.8f, -3.0f});
-        light1.Color({20.0f, 6.0f, 6.0f});
-        light1.Falloff({1, 0, 1});
-        light1.Shadowing(false);
+        light1.Position() = {-2.0f, 1.8f, -3.0f};
+        light1.Color() = {20.0f, 6.0f, 6.0f};
+        light1.Falloff() = {1, 0, 1};
+        light1.Shadowing() = false;
+
+        golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
     }
-    golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "DamagedHelmet/DamagedHelmet.gltf");
     for (auto& mesh : meshes)
     {
-        XMFLOAT4X4 world;
-        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixRotationY(0.4f) * XMMatrixTranslation(-1.8f, 0.5f, 0));
-        mesh.AddInstance(world);
+        MeshInstance instance;
+        XMStoreFloat4x4(&instance.transform,
+            XMLoadFloat4x4(&mesh.Instance(0).transform) * XMMatrixRotationY(0.4f) * XMMatrixTranslation(-1.8f, 0.5f, 0));
+        mesh.AddInstance(std::move(instance));
 
-        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.8f, 0.8f, 0.8f) * XMMatrixRotationY(-0.8f) *
-                                    XMMatrixTranslation(+1.8f, 0, 0));
-        mesh.AddInstance(world);
+        XMStoreFloat4x4(&instance.transform, XMLoadFloat4x4(&mesh.Instance(0).transform) * XMMatrixScaling(0.8f, 0.8f, 0.8f) *
+                                                 XMMatrixRotationY(-0.8f) * XMMatrixTranslation(+1.8f, 0, 0));
+        mesh.AddInstance(std::move(instance));
     }
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
@@ -417,39 +429,38 @@ TEST_F(RayCastingTest, Transparent)
     golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     {
-        XMFLOAT3 const eye = {0.0f, 1.0f, -5.0f};
-        XMFLOAT3 const look_at = {0.0f, 0.5f, 0.0f};
-        XMFLOAT3 const up = {0.0f, 1.0f, 0.0f};
+        Camera camera;
+        camera.Eye() = {0.0f, 1.0f, -5.0f};
+        camera.LookAt() = {0.0f, 0.5f, 0.0f};
+        camera.Up() = {0.0f, 1.0f, 0.0f};
+        camera.Fov() = XMConvertToRadians(45);
+        camera.NearPlane() = 0.1f;
+        camera.FarPlane() = 20;
 
-        float const fov = XMConvertToRadians(45);
-        float const near_plane = 0.1f;
-        float far_plane = 20;
-
-        golden_sun_engine_.Camera(eye, look_at, up, fov, near_plane, far_plane);
+        golden_sun_engine_.Camera(camera);
     }
-
-    std::vector<PointLight> lights;
     {
+        std::vector<PointLight> lights;
+
         auto& light0 = lights.emplace_back();
-        light0.Position({2.0f, 0.0f, -2.0f});
-        light0.Color({10.0f, 12.0f, 10.0f});
-        light0.Falloff({1, 0, 1});
-        light0.Shadowing(true);
+        light0.Position() = {2.0f, 0.0f, -2.0f};
+        light0.Color() = {10.0f, 12.0f, 10.0f};
+        light0.Falloff() = {1, 0, 1};
+        light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
-        light1.Position({-2.0f, 1.5f, -3.0f});
-        light1.Color({15.0f, 4.5f, 4.5f});
-        light1.Falloff({1, 0, 1});
-        light1.Shadowing(true);
+        light1.Position() = {-2.0f, 1.5f, -3.0f};
+        light1.Color() = {15.0f, 4.5f, 4.5f};
+        light1.Falloff() = {1, 0, 1};
+        light1.Shadowing() = true;
+
+        golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
     }
-    golden_sun_engine_.Lights(lights.data(), static_cast<uint32_t>(lights.size()));
 
     auto meshes = LoadMesh(gpu_system, test_env.AssetDir() + "AlphaBlendModeTest/AlphaBlendModeTest.gltf");
     for (auto& mesh : meshes)
     {
-        XMFLOAT4X4 world;
-        XMStoreFloat4x4(&world, XMLoadFloat4x4(&mesh.Transform(0)) * XMMatrixScaling(0.6f, 0.6f, 0.6f));
-        mesh.Transform(0, world);
+        XMStoreFloat4x4(&mesh.Instance(0).transform, XMLoadFloat4x4(&mesh.Instance(0).transform) * XMMatrixScaling(0.6f, 0.6f, 0.6f));
     }
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 

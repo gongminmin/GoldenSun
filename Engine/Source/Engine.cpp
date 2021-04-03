@@ -2,6 +2,7 @@
 
 #include <GoldenSun/Engine.hpp>
 
+#include <GoldenSun/Camera.hpp>
 #include <GoldenSun/Material.hpp>
 #include <GoldenSun/Mesh.hpp>
 #include <GoldenSun/SmartPtrHelper.hpp>
@@ -295,6 +296,7 @@ namespace
                 this->AddExport(exports[i]);
             }
         }
+
         void AddExports(wchar_t const* const* exports, uint32_t n)
         {
             for (uint32_t i = 0; i < n; i++)
@@ -730,7 +732,7 @@ namespace GoldenSun
 
                     for (uint32_t j = 0; j < mesh.NumInstances(); ++j)
                     {
-                        acceleration_structure_.AddBottomLevelASInstance(i, 0xFFFFFFFFU, XMLoadFloat4x4(&mesh.Transform(j)));
+                        acceleration_structure_.AddBottomLevelASInstance(i, XMLoadFloat4x4(&mesh.Instance(j).transform));
                     }
                 }
             }
@@ -761,15 +763,9 @@ namespace GoldenSun
             light_desc_dirty_ = true;
         }
 
-        void Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
+        void Camera(GoldenSun::Camera const& camera)
         {
-            eye_ = eye;
-            look_at_ = look_at;
-            up_ = up;
-
-            fov_ = fov;
-            near_plane_ = near_plane;
-            far_plane_ = far_plane;
+            camera_ = camera.Clone();
         }
 
         void Render(ID3D12GraphicsCommandList4* d3d12_cmd_list)
@@ -784,10 +780,11 @@ namespace GoldenSun
             d3d12_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
-                per_frame_constants_->camera_pos = XMFLOAT4(eye_.x, eye_.y, eye_.z, 1);
+                per_frame_constants_->camera_pos = XMFLOAT4(camera_.Eye().x, camera_.Eye().y, camera_.Eye().z, 1);
 
-                auto const view = XMMatrixLookAtLH(XMLoadFloat3(&eye_), XMLoadFloat3(&look_at_), XMLoadFloat3(&up_));
-                auto const proj = XMMatrixPerspectiveFovLH(fov_, aspect_ratio_, near_plane_, far_plane_);
+                auto const view =
+                    XMMatrixLookAtLH(XMLoadFloat3(&camera_.Eye()), XMLoadFloat3(&camera_.LookAt()), XMLoadFloat3(&camera_.Up()));
+                auto const proj = XMMatrixPerspectiveFovLH(camera_.Fov(), aspect_ratio_, camera_.NearPlane(), camera_.FarPlane());
                 XMStoreFloat4x4(&per_frame_constants_->inv_view_proj, XMMatrixTranspose(XMMatrixInverse(nullptr, view * proj)));
 
                 per_frame_constants_.UploadToGpu(frame_index);
@@ -1211,13 +1208,7 @@ namespace GoldenSun
         GpuUploadBuffer miss_shader_table_;
         uint32_t miss_shader_table_stride_ = 0xFFFFFFFFU;
 
-        XMFLOAT3 eye_;
-        XMFLOAT3 look_at_;
-        XMFLOAT3 up_;
-
-        float fov_;
-        float near_plane_;
-        float far_plane_;
+        GoldenSun::Camera camera_;
     };
 
 
@@ -1263,9 +1254,9 @@ namespace GoldenSun
         return impl_->Lights(lights, num_lights);
     }
 
-    void Engine::Camera(XMFLOAT3 const& eye, XMFLOAT3 const& look_at, XMFLOAT3 const& up, float fov, float near_plane, float far_plane)
+    void Engine::Camera(GoldenSun::Camera const& camera)
     {
-        return impl_->Camera(eye, look_at, up, fov, near_plane, far_plane);
+        return impl_->Camera(camera);
     }
 
     void Engine::Render(ID3D12GraphicsCommandList4* cmd_list)

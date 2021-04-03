@@ -28,8 +28,7 @@ namespace GoldenSun
         void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format);
         void Meshes(Mesh const* meshes, uint32_t num_meshes);
         void Lights(PointLight const* lights, uint32_t num_lights);
-        void Camera(DirectX::XMFLOAT3 const& eye, DirectX::XMFLOAT3 const& look_at, DirectX::XMFLOAT3 const& up, float fov,
-            float near_plane, float far_plane);
+        void Camera(Camera const& camera);
 
         void Render(ID3D12GraphicsCommandList4* cmd_list);
 

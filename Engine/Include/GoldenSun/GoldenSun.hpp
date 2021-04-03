@@ -8,6 +8,7 @@
 #define GOLDEN_SUN_API GOLDEN_SUN_SYMBOL_IMPORT
 #endif
 
+#include <GoldenSun/Camera.hpp>
 #include <GoldenSun/Engine.hpp>
 #include <GoldenSun/Light.hpp>
 #include <GoldenSun/Material.hpp>

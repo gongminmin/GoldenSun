@@ -71,13 +71,7 @@ namespace GoldenSun
 
         std::vector<Mesh> meshes_;
 
-        DirectX::XMFLOAT3 eye_;
-        DirectX::XMFLOAT3 look_at_;
-        DirectX::XMFLOAT3 up_;
-
-        float fov_;
-        float near_plane_;
-        float far_plane_;
+        Camera camera_;
 
         PointLight light_;
 

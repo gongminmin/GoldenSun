@@ -50,12 +50,12 @@ namespace GoldenSun
 
         virtual ~Impl() = default;
 
-        void Share(Impl& new_impl) const
+        void Share(Impl& target) const
         {
-            new_impl.resource_ = resource_;
-            new_impl.desc_ = desc_;
-            new_impl.heap_type_ = heap_type_;
-            new_impl.curr_state_ = curr_state_;
+            target.resource_ = resource_;
+            target.desc_ = desc_;
+            target.heap_type_ = heap_type_;
+            target.curr_state_ = curr_state_;
         }
 
         explicit operator bool() const noexcept

@@ -20,19 +20,19 @@ namespace GoldenSun
     public:
         Impl() noexcept = default;
 
-        void Albedo(DirectX::XMFLOAT3 const& value) noexcept
-        {
-            buffer_.albedo = value;
-        }
-
-        DirectX::XMFLOAT3 const& Albedo() const noexcept
+        XMFLOAT3& Albedo() noexcept
         {
             return buffer_.albedo;
         }
 
-        void Opacity(float value) noexcept
+        XMFLOAT3 const& Albedo() const noexcept
         {
-            buffer_.opacity = value;
+            return buffer_.albedo;
+        }
+
+        float& Opacity() noexcept
+        {
+            return buffer_.opacity;
         }
 
         float Opacity() const noexcept
@@ -40,9 +40,9 @@ namespace GoldenSun
             return buffer_.opacity;
         }
 
-        void Metallic(float value) noexcept
+        float& Metallic() noexcept
         {
-            buffer_.metallic = value;
+            return buffer_.metallic;
         }
 
         float Metallic() const noexcept
@@ -50,9 +50,9 @@ namespace GoldenSun
             return buffer_.metallic;
         }
 
-        void Glossiness(float value) noexcept
+        float& Glossiness() noexcept
         {
-            buffer_.glossiness = value;
+            return buffer_.glossiness;
         }
 
         float Glossiness() const noexcept
@@ -60,19 +60,19 @@ namespace GoldenSun
             return buffer_.glossiness;
         }
 
-        void Emissive(DirectX::XMFLOAT3 const& value) noexcept
-        {
-            buffer_.emissive = value;
-        }
-
-        DirectX::XMFLOAT3 const& Emissive() const noexcept
+        XMFLOAT3& Emissive() noexcept
         {
             return buffer_.emissive;
         }
 
-        void AlphaCutoff(float value) noexcept
+        XMFLOAT3 const& Emissive() const noexcept
         {
-            buffer_.alpha_cutoff = value;
+            return buffer_.emissive;
+        }
+
+        float& AlphaCutoff() noexcept
+        {
+            return buffer_.alpha_cutoff;
         }
 
         float AlphaCutoff() const noexcept
@@ -80,9 +80,9 @@ namespace GoldenSun
             return buffer_.alpha_cutoff;
         }
 
-        void Transparent(bool value) noexcept
+        bool& Transparent() noexcept
         {
-            buffer_.transparent = value;
+            return reinterpret_cast<bool&>(buffer_.transparent);
         }
 
         bool Transparent() const noexcept
@@ -90,9 +90,9 @@ namespace GoldenSun
             return buffer_.transparent;
         }
 
-        void TwoSided(bool value) noexcept
+        bool& TwoSided() noexcept
         {
-            buffer_.two_sided = value;
+            return reinterpret_cast<bool&>(buffer_.two_sided);
         }
 
         bool TwoSided() const noexcept
@@ -100,9 +100,9 @@ namespace GoldenSun
             return buffer_.two_sided;
         }
 
-        void NormalScale(float value) noexcept
+        float& NormalScale() noexcept
         {
-            buffer_.normal_scale = value;
+            return buffer_.normal_scale;
         }
 
         float NormalScale() const noexcept
@@ -110,9 +110,9 @@ namespace GoldenSun
             return buffer_.normal_scale;
         }
 
-        void OcclusionStrength(float value) noexcept
+        float& OcclusionStrength() noexcept
         {
-            buffer_.occlusion_strength = value;
+            return buffer_.occlusion_strength;
         }
 
         float OcclusionStrength() const noexcept
@@ -174,19 +174,19 @@ namespace GoldenSun
         return mtl;
     }
 
-    void PbrMaterial::Albedo(DirectX::XMFLOAT3 const& value) noexcept
-    {
-        impl_->Albedo(value);
-    }
-
-    DirectX::XMFLOAT3 const& PbrMaterial::Albedo() const noexcept
+    XMFLOAT3& PbrMaterial::Albedo() noexcept
     {
         return impl_->Albedo();
     }
 
-    void PbrMaterial::Opacity(float value) noexcept
+    XMFLOAT3 const& PbrMaterial::Albedo() const noexcept
     {
-        impl_->Opacity(value);
+        return impl_->Albedo();
+    }
+
+    float& PbrMaterial::Opacity() noexcept
+    {
+        return impl_->Opacity();
     }
 
     float PbrMaterial::Opacity() const noexcept
@@ -194,9 +194,9 @@ namespace GoldenSun
         return impl_->Opacity();
     }
 
-    void PbrMaterial::Metallic(float value) noexcept
+    float& PbrMaterial::Metallic() noexcept
     {
-        impl_->Metallic(value);
+        return impl_->Metallic();
     }
 
     float PbrMaterial::Metallic() const noexcept
@@ -204,9 +204,9 @@ namespace GoldenSun
         return impl_->Metallic();
     }
 
-    void PbrMaterial::Glossiness(float value) noexcept
+    float& PbrMaterial::Glossiness() noexcept
     {
-        impl_->Glossiness(value);
+        return impl_->Glossiness();
     }
 
     float PbrMaterial::Glossiness() const noexcept
@@ -214,19 +214,19 @@ namespace GoldenSun
         return impl_->Glossiness();
     }
 
-    void PbrMaterial::Emissive(DirectX::XMFLOAT3 const& value) noexcept
-    {
-        impl_->Emissive(value);
-    }
-
-    DirectX::XMFLOAT3 const& PbrMaterial::Emissive() const noexcept
+    XMFLOAT3& PbrMaterial::Emissive() noexcept
     {
         return impl_->Emissive();
     }
 
-    void PbrMaterial::AlphaCutoff(float value) noexcept
+    XMFLOAT3 const& PbrMaterial::Emissive() const noexcept
     {
-        impl_->AlphaCutoff(value);
+        return impl_->Emissive();
+    }
+
+    float& PbrMaterial::AlphaCutoff() noexcept
+    {
+        return impl_->AlphaCutoff();
     }
 
     float PbrMaterial::AlphaCutoff() const noexcept
@@ -234,9 +234,9 @@ namespace GoldenSun
         return impl_->AlphaCutoff();
     }
 
-    void PbrMaterial::Transparent(bool value) noexcept
+    bool& PbrMaterial::Transparent() noexcept
     {
-        impl_->Transparent(value);
+        return impl_->Transparent();
     }
 
     bool PbrMaterial::Transparent() const noexcept
@@ -244,9 +244,9 @@ namespace GoldenSun
         return impl_->Transparent();
     }
 
-    void PbrMaterial::TwoSided(bool value) noexcept
+    bool& PbrMaterial::TwoSided() noexcept
     {
-        impl_->TwoSided(value);
+        return impl_->TwoSided();
     }
 
     bool PbrMaterial::TwoSided() const noexcept
@@ -254,9 +254,9 @@ namespace GoldenSun
         return impl_->TwoSided();
     }
 
-    void PbrMaterial::NormalScale(float value) noexcept
+    float& PbrMaterial::NormalScale() noexcept
     {
-        impl_->NormalScale(value);
+        return impl_->NormalScale();
     }
 
     float PbrMaterial::NormalScale() const noexcept
@@ -264,9 +264,9 @@ namespace GoldenSun
         return impl_->NormalScale();
     }
 
-    void PbrMaterial::OcclusionStrength(float value) noexcept
+    float& PbrMaterial::OcclusionStrength() noexcept
     {
-        impl_->OcclusionStrength(value);
+        return impl_->OcclusionStrength();
     }
 
     float PbrMaterial::OcclusionStrength() const noexcept

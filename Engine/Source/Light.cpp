@@ -1,6 +1,6 @@
 #include "pch.hpp"
 
-#include <GoldenSun/Material.hpp>
+#include <GoldenSun/Light.hpp>
 
 #include "EngineInternal.hpp"
 
@@ -18,39 +18,44 @@ namespace GoldenSun
     public:
         Impl() noexcept = default;
 
-        void Position(DirectX::XMFLOAT3 const& value) noexcept
+        void Clone(Impl& target) const
         {
-            buffer_.position = value;
+            target.buffer_ = buffer_;
         }
 
-        DirectX::XMFLOAT3 const& Position() const noexcept
+        XMFLOAT3& Position() noexcept
         {
             return buffer_.position;
         }
 
-        void Color(DirectX::XMFLOAT3 const& value) noexcept
+        XMFLOAT3 const& Position() const noexcept
         {
-            buffer_.color = value;
+            return buffer_.position;
         }
 
-        DirectX::XMFLOAT3 const& Color() const noexcept
+        XMFLOAT3& Color() noexcept
         {
             return buffer_.color;
         }
 
-        void Falloff(DirectX::XMFLOAT3 const& value) noexcept
+        XMFLOAT3 const& Color() const noexcept
         {
-            buffer_.falloff = value;
+            return buffer_.color;
         }
 
-        DirectX::XMFLOAT3 const& Falloff() const noexcept
+        XMFLOAT3& Falloff() noexcept
         {
             return buffer_.falloff;
         }
 
-        void Shadowing(bool value) noexcept
+        XMFLOAT3 const& Falloff() const noexcept
         {
-            buffer_.shadowing = value;
+            return buffer_.falloff;
+        }
+
+        bool& Shadowing() noexcept
+        {
+            return reinterpret_cast<bool&>(buffer_.shadowing);
         }
 
         bool Shadowing() const noexcept
@@ -96,43 +101,43 @@ namespace GoldenSun
     PointLight PointLight::Clone() const
     {
         PointLight light;
-        light.impl_->buffer_ = impl_->buffer_;
+        impl_->Clone(*light.impl_);
         return light;
     }
 
-    void PointLight::Position(DirectX::XMFLOAT3 const& value) noexcept
-    {
-        impl_->Position(value);
-    }
-
-    DirectX::XMFLOAT3 const& PointLight::Position() const noexcept
+    XMFLOAT3& PointLight::Position() noexcept
     {
         return impl_->Position();
     }
 
-    void PointLight::Color(DirectX::XMFLOAT3 const& value) noexcept
+    XMFLOAT3 const& PointLight::Position() const noexcept
     {
-        impl_->Color(value);
+        return impl_->Position();
     }
 
-    DirectX::XMFLOAT3 const& PointLight::Color() const noexcept
+    XMFLOAT3& PointLight::Color() noexcept
     {
         return impl_->Color();
     }
 
-    void PointLight::Falloff(DirectX::XMFLOAT3 const& value) noexcept
+    XMFLOAT3 const& PointLight::Color() const noexcept
     {
-        impl_->Falloff(value);
+        return impl_->Color();
     }
 
-    DirectX::XMFLOAT3 const& PointLight::Falloff() const noexcept
+    XMFLOAT3& PointLight::Falloff() noexcept
     {
         return impl_->Falloff();
     }
 
-    void PointLight::Shadowing(bool value) noexcept
+    XMFLOAT3 const& PointLight::Falloff() const noexcept
     {
-        impl_->Shadowing(value);
+        return impl_->Falloff();
+    }
+
+    bool& PointLight::Shadowing() noexcept
+    {
+        return impl_->Shadowing();
     }
 
     bool PointLight::Shadowing() const noexcept

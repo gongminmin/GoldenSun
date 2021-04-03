@@ -158,9 +158,9 @@ namespace
         {
             for (uint32_t mi = 0; mi < ai_node->mNumMeshes; ++mi)
             {
-                XMFLOAT4X4 world;
-                XMStoreFloat4x4(&world, transform_to_world);
-                meshes[ai_node->mMeshes[mi]].AddInstance(world);
+                MeshInstance instance;
+                XMStoreFloat4x4(&instance.transform, transform_to_world);
+                meshes[ai_node->mMeshes[mi]].AddInstance(std::move(instance));
             }
         }
 
@@ -192,48 +192,48 @@ namespace
 
             if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, &ai_albedo))
             {
-                material.Albedo(Color4ToFloat3(ai_albedo));
-                material.Opacity(ai_albedo.a);
+                material.Albedo() = Color4ToFloat3(ai_albedo);
+                material.Opacity() = ai_albedo.a;
             }
             else
             {
                 if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE, &ai_albedo))
                 {
-                    material.Albedo(Color4ToFloat3(ai_albedo));
+                    material.Albedo() = Color4ToFloat3(ai_albedo);
                 }
                 if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_OPACITY, &ai_opacity))
                 {
-                    material.Opacity(ai_opacity);
+                    material.Opacity() = ai_opacity;
                 }
             }
 
             if (AI_SUCCESS == aiGetMaterialColor(mtl, AI_MATKEY_COLOR_EMISSIVE, &ai_emissive))
             {
-                material.Emissive(Color4ToFloat3(ai_emissive));
+                material.Emissive() = Color4ToFloat3(ai_emissive);
             }
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLIC_FACTOR, &ai_metallic))
             {
-                material.Metallic(ai_metallic);
+                material.Metallic() = ai_metallic;
             }
 
             if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_shininess))
             {
-                material.Glossiness(std::max(1.0f, std::min(ai_shininess, PbrMaterial::MaxGlossiness)));
+                material.Glossiness() = std::max(1.0f, std::min(ai_shininess, PbrMaterial::MaxGlossiness));
             }
             else
             {
-                material.Glossiness(1);
+                material.Glossiness() = 1;
             }
 
             if ((material.Opacity() < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
             {
-                material.Transparent(true);
+                material.Transparent() = true;
             }
 
             if (AI_SUCCESS == aiGetMaterialInteger(mtl, AI_MATKEY_TWOSIDED, &ai_two_sided))
             {
-                material.TwoSided(ai_two_sided ? true : false);
+                material.TwoSided() = ai_two_sided ? true : false;
             }
 
             aiString ai_alpha_mode;
@@ -243,16 +243,16 @@ namespace
                 {
                     if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_ALPHACUTOFF, &ai_alpha_cutoff))
                     {
-                        material.AlphaCutoff(ai_alpha_cutoff);
+                        material.AlphaCutoff() = ai_alpha_cutoff;
                     }
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "BLEND") == 0)
                 {
-                    material.Transparent(true);
+                    material.Transparent() = true;
                 }
                 else if (strcmp(ai_alpha_mode.C_Str(), "OPAQUE") == 0)
                 {
-                    material.Transparent(false);
+                    material.Transparent() = false;
                 }
             }
 
@@ -301,7 +301,7 @@ namespace
                         LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &ai_normal_scale);
-                material.NormalScale(ai_normal_scale);
+                material.NormalScale() = ai_normal_scale;
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_LIGHTMAP) > 0)
@@ -313,7 +313,7 @@ namespace
                         LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &ai_occlusion_strength);
-                material.OcclusionStrength(ai_occlusion_strength);
+                material.OcclusionStrength() = ai_occlusion_strength;
             }
         }
 

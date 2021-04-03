@@ -76,21 +76,21 @@ namespace GoldenSun
     void GoldenSunApp::InitializeScene()
     {
         {
-            eye_ = {0.0f, 1.0f, -3.0f};
-            look_at_ = {0.0f, 0.0f, 0.0f};
-            up_ = {0.0f, 1.0f, 0.0f};
+            camera_.Eye() = {0.0f, 1.0f, -3.0f};
+            camera_.LookAt() = {0.0f, 0.0f, 0.0f};
+            camera_.Up() = {0.0f, 1.0f, 0.0f};
 
-            fov_ = XMConvertToRadians(45);
-            near_plane_ = 0.1f;
-            far_plane_ = 20;
+            camera_.Fov() = XMConvertToRadians(45);
+            camera_.NearPlane() = 0.1f;
+            camera_.FarPlane() = 20;
 
-            golden_sun_engine_.Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
+            golden_sun_engine_.Camera(camera_);
         }
         {
-            light_.Position({0.0f, 1.8f, -3.0f});
-            light_.Color({20.0f, 20.0f, 20.0f});
-            light_.Falloff({1, 0, 1});
-            light_.Shadowing(true);
+            light_.Position() = {0.0f, 1.8f, -3.0f};
+            light_.Color() = {20.0f, 20.0f, 20.0f};
+            light_.Falloff() = {1, 0, 1};
+            light_.Shadowing() = true;
 
             golden_sun_engine_.Lights(&light_, 1);
         }
@@ -112,24 +112,18 @@ namespace GoldenSun
             float const seconds_to_rotate_around = 12.0f;
             float const rotate = XMConvertToRadians(360.0f * (frame_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationY(rotate);
-            XMVECTOR eye = XMVector3Transform(XMLoadFloat3(&eye_), rotate_mat);
-            XMVECTOR look_at = XMVector3Transform(XMLoadFloat3(&look_at_), rotate_mat);
-            XMVECTOR up = XMVector3Transform(XMLoadFloat3(&up_), rotate_mat);
+            XMStoreFloat3(&camera_.Eye(), XMVector3Transform(XMLoadFloat3(&camera_.Eye()), rotate_mat));
+            XMStoreFloat3(&camera_.LookAt(), XMVector3Transform(XMLoadFloat3(&camera_.LookAt()), rotate_mat));
+            XMStoreFloat3(&camera_.Up(), XMVector3Transform(XMLoadFloat3(&camera_.Up()), rotate_mat));
 
-            XMStoreFloat3(&eye_, eye);
-            XMStoreFloat3(&look_at_, look_at);
-            XMStoreFloat3(&up_, up);
-
-            golden_sun_engine_.Camera(eye_, look_at_, up_, fov_, near_plane_, far_plane_);
+            golden_sun_engine_.Camera(camera_);
         }
         {
             float const seconds_to_rotate_around = 8.0f;
             float const rotate = XMConvertToRadians(-360.0f * (frame_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationZ(rotate) * XMMatrixRotationY(rotate);
 
-            XMFLOAT3 light_pos = light_.Position();
-            XMStoreFloat3(&light_pos, XMVector3Transform(XMLoadFloat3(&light_pos), rotate_mat));
-            light_.Position(light_pos);
+            XMStoreFloat3(&light_.Position(), XMVector3Transform(XMLoadFloat3(&light_.Position()), rotate_mat));
 
             golden_sun_engine_.Lights(&light_, 1);
         }

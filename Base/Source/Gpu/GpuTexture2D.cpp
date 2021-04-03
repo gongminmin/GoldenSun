@@ -48,11 +48,11 @@ namespace GoldenSun
             }
         }
 
-        void Share(Impl& new_impl) const
+        void Share(Impl& target) const
         {
-            new_impl.resource_ = resource_;
-            new_impl.desc_ = desc_;
-            new_impl.curr_states_ = curr_states_;
+            target.resource_ = resource_;
+            target.desc_ = desc_;
+            target.curr_states_ = curr_states_;
         }
 
         explicit operator bool() const noexcept

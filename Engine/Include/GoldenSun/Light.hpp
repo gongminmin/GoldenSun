@@ -21,16 +21,16 @@ namespace GoldenSun
 
         PointLight Clone() const;
 
-        void Position(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3& Position() noexcept;
         DirectX::XMFLOAT3 const& Position() const noexcept;
 
-        void Color(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3& Color() noexcept;
         DirectX::XMFLOAT3 const& Color() const noexcept;
 
-        void Falloff(DirectX::XMFLOAT3 const& value) noexcept;
+        DirectX::XMFLOAT3& Falloff() noexcept;
         DirectX::XMFLOAT3 const& Falloff() const noexcept;
 
-        void Shadowing(bool value) noexcept;
+        bool& Shadowing() noexcept;
         bool Shadowing() const noexcept;
 
     private:

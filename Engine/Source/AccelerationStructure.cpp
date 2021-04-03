@@ -197,8 +197,7 @@ namespace GoldenSun
         return as_id;
     }
 
-    uint32_t RaytracingAccelerationStructureManager::AddBottomLevelASInstance(
-        uint32_t index, uint32_t instance_contribution_to_hit_group_index, XMMATRIX transform, uint8_t instance_mask)
+    uint32_t RaytracingAccelerationStructureManager::AddBottomLevelASInstance(uint32_t index, XMMATRIX transform, uint8_t instance_mask)
     {
         Verify(num_bottom_level_as_instances_ < bottom_level_as_instance_descs_.NumElements());
 
@@ -209,9 +208,7 @@ namespace GoldenSun
 
         auto& instance_desc = bottom_level_as_instance_descs_[instance_index];
         instance_desc.InstanceMask = instance_mask;
-        instance_desc.InstanceContributionToHitGroupIndex = instance_contribution_to_hit_group_index != 0xFFFFFFFFU
-                                                                ? instance_contribution_to_hit_group_index
-                                                                : bottom_level_as.InstanceContributionToHitGroupIndex();
+        instance_desc.InstanceContributionToHitGroupIndex = bottom_level_as.InstanceContributionToHitGroupIndex();
         instance_desc.AccelerationStructure = bottom_level_as.Buffer().GpuVirtualAddress();
         XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(instance_desc.Transform), transform);
 

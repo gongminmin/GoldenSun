@@ -2,6 +2,7 @@ set(lib_name "GoldenSunEngine")
 
 set(source_files
     Source/AccelerationStructure.cpp
+    Source/Camera.cpp
     Source/Engine.cpp
     Source/Light.cpp
     Source/Material.cpp
@@ -9,6 +10,7 @@ set(source_files
 )
 
 set(header_files
+    Include/GoldenSun/Camera.hpp
     Include/GoldenSun/Engine.hpp
     Include/GoldenSun/GoldenSun.hpp
     Include/GoldenSun/Light.hpp
