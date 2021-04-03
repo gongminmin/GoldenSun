@@ -37,6 +37,7 @@ struct SceneConstantBuffer
 {
     float4x4 inv_view_proj;
     float4 camera_pos;
+    bool is_srgb_output;
 };
 
 struct Light
@@ -55,7 +56,7 @@ struct PbrMaterial
     float opacity;
     float3 emissive;
     float metallic;
-    float glossiness;
+    float roughness;
     float alpha_cutoff;
     float normal_scale;
     float occlusion_strength;
@@ -91,7 +92,7 @@ StructuredBuffer<Vertex> vertex_buffer : register(t0, space1);
 ByteAddressBuffer index_buffer : register(t1, space1);
 
 Texture2D albedo_tex : register(t2, space1);
-Texture2D metallic_glossiness_tex : register(t3, space1);
+Texture2D metallic_roughness_tex : register(t3, space1);
 Texture2D emissive_tex : register(t4, space1);
 Texture2D normal_tex : register(t5, space1);
 Texture2D occlusion_tex : register(t6, space1);
@@ -217,6 +218,18 @@ bool TraceShadowRay(Ray ray, uint curr_ray_recursion_depth)
     return payload.hit;
 }
 
+float3 LinearToSrgb(float3 color)
+{
+    float const ALPHA = 0.055f;
+    return (color < 0.0031308f) ? color * 12.92f : ((1 + ALPHA) * pow(color, 1 / 2.4f) - ALPHA);
+}
+
+float3 SrgbToLinear(float3 color)
+{
+    float const ALPHA = 0.055f;
+    return (color < 0.04045f) ? color / 12.92f : pow((color + ALPHA) / (1 + ALPHA), 2.4f);
+}
+
 [shader("raygeneration")]
 void RayGenShader()
 {
@@ -233,6 +246,11 @@ void RayGenShader()
     uint curr_recursion_depth = 0;
     float4 color = TraceRadianceRay(ray, curr_recursion_depth);
 
+    if (scene_cb.is_srgb_output)
+    {
+        color.rgb = LinearToSrgb(color.rgb);
+    }
+
     render_target[DispatchRaysIndex().xy] = color;
 }
 
@@ -245,16 +263,17 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
 {
     PbrMaterial mtl = material_buffer[primitive_cb.material_id];
 
-    float const ambient_factor = 0.1f;
+    float const ambient_factor = 0.02f;
 
     float4 const albedo_data = albedo_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0);
     float3 const albedo = mtl.albedo * albedo_data.xyz;
     float const opacity = mtl.opacity * albedo_data.w;
 
-    float const metallic = mtl.metallic * metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).y;
+    float2 metallic_roughness = metallic_roughness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).zy;
+    float const metallic = saturate(mtl.metallic * metallic_roughness.x);
 
-    float const MAX_GLOSSINESS = 8192;
-    float const glossiness = mtl.glossiness * pow(MAX_GLOSSINESS, metallic_glossiness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).z);
+    float const MaxGlossiness = 8192;
+    float const glossiness = pow(MaxGlossiness, 1 - saturate(mtl.roughness * metallic_roughness.y));
 
     float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
 
@@ -402,7 +421,12 @@ void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleInters
 [shader("miss")]
 void MissShaderRadianceRay(inout RadianceRayPayload payload)
 {
-    float4 const background = float4(0.2f, 0.4f, 0.6f, 1.0f);
+    float4 background = float4(0.2f, 0.4f, 0.6f, 1.0f);
+    if (scene_cb.is_srgb_output)
+    {
+        background.rgb = SrgbToLinear(background.rgb);
+    }
+
     payload.color = background;
 }
 

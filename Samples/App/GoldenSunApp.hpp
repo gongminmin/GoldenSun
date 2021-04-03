@@ -58,7 +58,7 @@ namespace GoldenSun
         GpuDescriptorBlock rtv_desc_block_;
         uint32_t rtv_descriptor_size_;
 
-        DXGI_FORMAT back_buffer_fmt_ = DXGI_FORMAT_R8G8B8A8_UNORM;
+        DXGI_FORMAT back_buffer_fmt_ = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         bool tearing_supported_;
 
         uint32_t total_num_frames_ = 0;

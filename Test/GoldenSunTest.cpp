@@ -74,7 +74,7 @@ namespace GoldenSun
         {
             ret.size_unmatch = true;
         }
-        if (expected_image.Format() != actual_image.Format())
+        if (LinearFormatOf(expected_image.Format()) != LinearFormatOf(actual_image.Format()))
         {
             ret.format_unmatch = true;
         }
@@ -219,7 +219,7 @@ namespace GoldenSun
 
     void TestEnvironment::CompareWithExpected(std::string const& expected_name, GpuTexture2D& actual_image, float channel_tolerance)
     {
-        auto expected_image = LoadTexture(gpu_system_, expected_dir_ + expected_name + ".png", DXGI_FORMAT_R8G8B8A8_UNORM);
+        auto expected_image = LoadTexture(gpu_system_, expected_dir_ + expected_name + ".png", DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
         {
             std::filesystem::path leaf_dir = result_dir_ + expected_name;

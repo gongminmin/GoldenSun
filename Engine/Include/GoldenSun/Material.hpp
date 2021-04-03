@@ -20,7 +20,7 @@ namespace GoldenSun
         enum class TextureSlot : uint32_t
         {
             Albedo,
-            MetallicGlossiness,
+            MetallicRoughness,
             Emissive,
             Normal,
             Occlusion,
@@ -45,8 +45,8 @@ namespace GoldenSun
 
         float& Metallic() noexcept;
         float Metallic() const noexcept;
-        float& Glossiness() noexcept;
-        float Glossiness() const noexcept;
+        float& Roughness() noexcept;
+        float Roughness() const noexcept;
 
         DirectX::XMFLOAT3& Emissive() noexcept;
         DirectX::XMFLOAT3 const& Emissive() const noexcept;

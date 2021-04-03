@@ -14,7 +14,7 @@ namespace GoldenSun
         alignas(4) float opacity{1};
         alignas(4) DirectX::XMFLOAT3 emissive{0, 0, 0};
         alignas(4) float metallic{0};
-        alignas(4) float glossiness{1};
+        alignas(4) float roughness{1};
         alignas(4) float alpha_cutoff{0};
         alignas(4) float normal_scale{1};
         alignas(4) float occlusion_strength{1};

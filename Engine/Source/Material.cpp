@@ -50,14 +50,14 @@ namespace GoldenSun
             return buffer_.metallic;
         }
 
-        float& Glossiness() noexcept
+        float& Roughness() noexcept
         {
-            return buffer_.glossiness;
+            return buffer_.roughness;
         }
 
-        float Glossiness() const noexcept
+        float Roughness() const noexcept
         {
-            return buffer_.glossiness;
+            return buffer_.roughness;
         }
 
         XMFLOAT3& Emissive() noexcept
@@ -204,14 +204,14 @@ namespace GoldenSun
         return impl_->Metallic();
     }
 
-    float& PbrMaterial::Glossiness() noexcept
+    float& PbrMaterial::Roughness() noexcept
     {
-        return impl_->Glossiness();
+        return impl_->Roughness();
     }
 
-    float PbrMaterial::Glossiness() const noexcept
+    float PbrMaterial::Roughness() const noexcept
     {
-        return impl_->Glossiness();
+        return impl_->Roughness();
     }
 
     XMFLOAT3& PbrMaterial::Emissive() noexcept

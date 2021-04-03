@@ -29,7 +29,7 @@ TEST_F(RayCastingTest, SingleObject)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -105,7 +105,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -205,7 +205,7 @@ TEST_F(RayCastingTest, Instancing)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -312,7 +312,7 @@ TEST_F(RayCastingTest, Mesh)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -328,7 +328,7 @@ TEST_F(RayCastingTest, Mesh)
     {
         PointLight light;
         light.Position() = {2.0f, 0.0f, -2.0f};
-        light.Color() = {20.0f, 24.0f, 20.0f};
+        light.Color() = {15.0f, 18.0f, 15.0f};
         light.Falloff() = {1, 0, 1};
         light.Shadowing() = false;
 
@@ -365,7 +365,7 @@ TEST_F(RayCastingTest, MeshShadowed)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -383,13 +383,13 @@ TEST_F(RayCastingTest, MeshShadowed)
 
         auto& light0 = lights.emplace_back();
         light0.Position() = {2.0f, 0.0f, -2.0f};
-        light0.Color() = {20.0f, 24.0f, 20.0f};
+        light0.Color() = {15.0f, 18.0f, 15.0f};
         light0.Falloff() = {1, 0, 1};
         light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
         light1.Position() = {-2.0f, 1.8f, -3.0f};
-        light1.Color() = {20.0f, 6.0f, 6.0f};
+        light1.Color() = {15.0f, 4.5f, 4.5f};
         light1.Falloff() = {1, 0, 1};
         light1.Shadowing() = false;
 
@@ -426,7 +426,7 @@ TEST_F(RayCastingTest, Transparent)
     auto& test_env = TestEnv();
     auto& gpu_system = test_env.GpuSystem();
 
-    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM);
+    golden_sun_engine_.RenderTarget(1024, 768, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     {
         Camera camera;
@@ -444,13 +444,13 @@ TEST_F(RayCastingTest, Transparent)
 
         auto& light0 = lights.emplace_back();
         light0.Position() = {2.0f, 0.0f, -2.0f};
-        light0.Color() = {10.0f, 12.0f, 10.0f};
+        light0.Color() = {8.0f, 10.0f, 8.0f};
         light0.Falloff() = {1, 0, 1};
         light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
         light1.Position() = {-2.0f, 1.5f, -3.0f};
-        light1.Color() = {15.0f, 4.5f, 4.5f};
+        light1.Color() = {12.0f, 2.5f, 2.5f};
         light1.Falloff() = {1, 0, 1};
         light1.Shadowing() = true;
 

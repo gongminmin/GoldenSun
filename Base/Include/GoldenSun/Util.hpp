@@ -35,7 +35,8 @@ namespace GoldenSun
     std::string ExeDirectory();
 
     DXGI_FORMAT LinearFormatOf(DXGI_FORMAT fmt) noexcept;
-    DXGI_FORMAT SRGBFormatOf(DXGI_FORMAT fmt) noexcept;
+    DXGI_FORMAT SrgbFormatOf(DXGI_FORMAT fmt) noexcept;
+    bool IsSrgbFormat(DXGI_FORMAT fmt) noexcept;
     uint32_t FormatSize(DXGI_FORMAT fmt) noexcept;
 
     D3D12_ROOT_PARAMETER CreateRootParameterAsDescriptorTable(const D3D12_DESCRIPTOR_RANGE* descriptor_ranges,

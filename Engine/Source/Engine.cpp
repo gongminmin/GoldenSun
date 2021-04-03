@@ -558,8 +558,9 @@ namespace
 
     struct SceneConstantBuffer
     {
-        XMFLOAT4X4 inv_view_proj;
-        XMFLOAT4 camera_pos;
+        alignas(4) XMFLOAT4X4 inv_view_proj;
+        alignas(4) XMFLOAT4 camera_pos;
+        alignas(4) uint32_t is_srgb_output;
     };
 
     struct PrimitiveConstantBuffer
@@ -623,8 +624,8 @@ namespace GoldenSun
             auto cmd_list = gpu_system_.CreateCommandList();
             default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Albedo)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0xFFFFFFFFU);
-            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::MetallicGlossiness)] =
-                CreateSolidColorTexture(gpu_system_, cmd_list, 0x00000000U);
+            default_textures_[std::to_underlying(PbrMaterial::TextureSlot::MetallicRoughness)] =
+                CreateSolidColorTexture(gpu_system_, cmd_list, 0x0000FF00U);
             default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Emissive)] =
                 CreateSolidColorTexture(gpu_system_, cmd_list, 0x00000000U);
             default_textures_[std::to_underlying(PbrMaterial::TextureSlot::Normal)] =
@@ -781,6 +782,7 @@ namespace GoldenSun
 
             {
                 per_frame_constants_->camera_pos = XMFLOAT4(camera_.Eye().x, camera_.Eye().y, camera_.Eye().z, 1);
+                per_frame_constants_->is_srgb_output = IsSrgbFormat(format_);
 
                 auto const view =
                     XMMatrixLookAtLH(XMLoadFloat3(&camera_.Eye()), XMLoadFloat3(&camera_.LookAt()), XMLoadFloat3(&camera_.Up()));
@@ -903,7 +905,7 @@ namespace GoldenSun
                 D3D12_DESCRIPTOR_RANGE const ranges[] = {
                     // VB and IB
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
-                    // albedo, metallic glossiness, emissive, normal, and occlusion
+                    // albedo, metallic roughness, emissive, normal, and occlusion
                     {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 2, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
                 };
 

@@ -181,7 +181,7 @@ namespace
             aiColor4D ai_albedo(0, 0, 0, 0);
             float ai_opacity = 1;
             float ai_metallic = 0;
-            float ai_shininess = 1;
+            float ai_roughness = 1;
             aiColor4D ai_emissive(0, 0, 0, 0);
             int ai_two_sided = 0;
             float ai_alpha_cutoff = 0;
@@ -217,13 +217,18 @@ namespace
                 material.Metallic() = ai_metallic;
             }
 
-            if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_shininess))
+            if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_ROUGHNESS_FACTOR, &ai_roughness))
             {
-                material.Glossiness() = std::max(1.0f, std::min(ai_shininess, PbrMaterial::MaxGlossiness));
+                material.Roughness() = ai_roughness;
+            }
+            else if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_roughness))
+            {
+                material.Roughness() =
+                    1 - log(std::max(1.0f, std::min(ai_roughness, PbrMaterial::MaxGlossiness))) / log(PbrMaterial::MaxGlossiness);
             }
             else
             {
-                material.Glossiness() = 1;
+                material.Roughness() = 1;
             }
 
             if ((material.Opacity() < 1) || (aiGetMaterialTextureCount(mtl, aiTextureType_OPACITY) > 0))
@@ -270,15 +275,7 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::MetallicGlossiness,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
-            }
-            else if (aiGetMaterialTextureCount(mtl, aiTextureType_SHININESS) > 0)
-            {
-                aiString str;
-                aiGetMaterialTexture(mtl, aiTextureType_SHININESS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::MetallicGlossiness,
+                material.Texture(PbrMaterial::TextureSlot::MetallicRoughness,
                     reinterpret_cast<ID3D12Resource*>(
                         LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
             }
