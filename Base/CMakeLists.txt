@@ -44,6 +44,7 @@ set(gpu_header_files
     Include/GoldenSun/Gpu/GpuResourceViews.hpp
     Include/GoldenSun/Gpu/GpuSwapChain.hpp
     Include/GoldenSun/Gpu/GpuSystem.hpp
+    Include/GoldenSun/Gpu/GpuSystemD3D12.hpp
     Include/GoldenSun/Gpu/GpuTexture2D.hpp
 )
 

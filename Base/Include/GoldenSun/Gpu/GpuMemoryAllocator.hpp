@@ -61,15 +61,19 @@ namespace GoldenSun
         void Reset() noexcept;
         void Reset(GpuMemoryPage const& page, uint32_t offset, uint32_t size) noexcept;
 
-        explicit operator bool() const noexcept
+        void* NativeBufferHandle() const noexcept
         {
-            return (native_resource_ != nullptr);
+            return native_buffer_;
+        }
+        template <typename ApiTraits>
+        typename ApiTraits::BufferType NativeBufferHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::BufferType>(this->NativeBufferHandle());
         }
 
-        // TODO: Remove it after finishing the GPU system
-        void* NativeResource() const noexcept
+        explicit operator bool() const noexcept
         {
-            return native_resource_;
+            return (native_buffer_ != nullptr);
         }
 
         uint32_t Offset() const noexcept
@@ -99,7 +103,7 @@ namespace GoldenSun
         }
 
     private:
-        void* native_resource_ = nullptr;
+        void* native_buffer_ = nullptr;
         uint32_t offset_ = 0;
         uint32_t size_ = 0;
         void* cpu_addr_ = nullptr;

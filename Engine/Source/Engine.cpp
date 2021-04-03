@@ -799,16 +799,16 @@ namespace GoldenSun
                     std::to_underlying(GlobalRootSignature::Slot::SceneConstant), per_frame_constants_.GpuVirtualAddress(frame_index));
             }
 
-            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(output_desc_block_.NativeDescriptorHeap())};
+            ID3D12DescriptorHeap* heaps[] = {output_desc_block_.NativeDescriptorHeapHandle<D3D12Traits>()};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
-            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::OutputView),
-                OffsetHandle(output_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(
+                std::to_underlying(GlobalRootSignature::Slot::OutputView), output_desc_block_.GpuHandle());
             d3d12_cmd_list->SetComputeRootShaderResourceView(std::to_underlying(GlobalRootSignature::Slot::AccelerationStructure),
                 acceleration_structure_.TopLevelASBuffer().GpuVirtualAddress());
-            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::MaterialBuffer),
-                OffsetHandle(mesh_desc_block_.GpuHandle(), 0, descriptor_size_));
-            d3d12_cmd_list->SetComputeRootDescriptorTable(std::to_underlying(GlobalRootSignature::Slot::LightBuffer),
-                OffsetHandle(light_desc_block_.GpuHandle(), 0, descriptor_size_));
+            d3d12_cmd_list->SetComputeRootDescriptorTable(
+                std::to_underlying(GlobalRootSignature::Slot::MaterialBuffer), mesh_desc_block_.GpuHandle());
+            d3d12_cmd_list->SetComputeRootDescriptorTable(
+                std::to_underlying(GlobalRootSignature::Slot::LightBuffer), light_desc_block_.GpuHandle());
 
             D3D12_DISPATCH_RAYS_DESC dispatch_desc{};
 
@@ -833,7 +833,7 @@ namespace GoldenSun
 
         ID3D12Resource* Output() const noexcept
         {
-            return reinterpret_cast<ID3D12Resource*>(ray_tracing_output_.NativeResource());
+            return ray_tracing_output_.NativeHandle<D3D12Traits>();
         }
 
     private:
@@ -864,7 +864,7 @@ namespace GoldenSun
                 TIFHR(hr);
             }
 
-            auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system_.NativeDevice());
+            auto* d3d12_device = gpu_system_.NativeDeviceHandle<D3D12Traits>();
 
             ComPtr<ID3D12RootSignature> root_sig;
             TIFHR(d3d12_device->CreateRootSignature(
@@ -978,7 +978,7 @@ namespace GoldenSun
             PrintStateObjectDesc(state_obj_desc);
 #endif
 
-            auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system_.NativeDevice());
+            auto* d3d12_device = gpu_system_.NativeDeviceHandle<D3D12Traits>();
             TIFHR(d3d12_device->CreateStateObject(&state_obj_desc, UuidOf<ID3D12StateObject>(), state_obj_.PutVoid()));
         }
 
@@ -1004,8 +1004,8 @@ namespace GoldenSun
                     gpu_system_.ReallocCbvSrvUavDescBlock(light_desc_block_, 1);
                 }
 
-                if ((output_desc_block_.NativeDescriptorHeap() != mesh_desc_block_.NativeDescriptorHeap()) ||
-                    (output_desc_block_.NativeDescriptorHeap() != light_desc_block_.NativeDescriptorHeap()))
+                if ((output_desc_block_.NativeDescriptorHeapHandle() != mesh_desc_block_.NativeDescriptorHeapHandle()) ||
+                    (output_desc_block_.NativeDescriptorHeapHandle() != light_desc_block_.NativeDescriptorHeapHandle()))
                 {
                     output_desc_dirty_ = true;
                     mesh_desc_dirty_ = true;
@@ -1019,8 +1019,7 @@ namespace GoldenSun
 
             if (output_desc_dirty_)
             {
-                gpu_system_.CreateUnorderedAccessView(
-                    ray_tracing_output_, LinearFormatOf(format_), OffsetHandle(output_desc_block_.CpuHandle(), 0, descriptor_size_));
+                gpu_system_.CreateUnorderedAccessView(ray_tracing_output_, LinearFormatOf(format_), output_desc_block_.CpuHandle());
                 output_desc_dirty_ = false;
             }
 
@@ -1029,7 +1028,7 @@ namespace GoldenSun
                 uint32_t slot = 0;
 
                 gpu_system_.CreateShaderResourceView(
-                    GpuBuffer(reinterpret_cast<ID3D12Resource*>(material_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
+                    GpuBuffer(material_mem_block_.NativeBufferHandle<D3D12Traits>(), D3D12_RESOURCE_STATE_GENERIC_READ),
                     material_mem_block_.Offset() / sizeof(PbrMaterialBuffer), num_materials, sizeof(PbrMaterialBuffer),
                     OffsetHandle(mesh_desc_block_.CpuHandle(), slot, descriptor_size_));
                 ++slot;
@@ -1137,12 +1136,7 @@ namespace GoldenSun
 
             if (light_desc_dirty_)
             {
-                assert(light_mem_block_.Offset() / sizeof(LightBuffer) * sizeof(LightBuffer) == light_mem_block_.Offset());
-                gpu_system_.CreateShaderResourceView(
-                    GpuBuffer(reinterpret_cast<ID3D12Resource*>(light_mem_block_.NativeResource()), D3D12_RESOURCE_STATE_GENERIC_READ),
-                    light_mem_block_.Offset() / sizeof(LightBuffer), num_lights_, sizeof(LightBuffer),
-                    OffsetHandle(light_desc_block_.CpuHandle(), 0, descriptor_size_));
-
+                gpu_system_.CreateShaderResourceView(light_mem_block_, sizeof(LightBuffer), light_desc_block_.CpuHandle());
                 light_desc_dirty_ = false;
             }
         }

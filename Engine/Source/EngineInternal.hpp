@@ -34,7 +34,7 @@ namespace GoldenSun
         alignas(4) uint8_t paddings[24]{};
     };
     static_assert(sizeof(LightBuffer) % 16 == 0);
-    static_assert(sizeof(LightBuffer) % 64 == 0); // To align with GpuMemoryBlock, for now
+    static_assert(sizeof(LightBuffer) % 64 == 0); // TODO: Remove this after GpuMemoryAllocator can allocate an aligned address
 
     class EngineInternal final
     {

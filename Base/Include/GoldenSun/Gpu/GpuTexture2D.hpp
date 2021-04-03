@@ -24,10 +24,15 @@ namespace GoldenSun
 
         GpuTexture2D Share() const;
 
-        explicit operator bool() const noexcept;
+        void* NativeHandle() const noexcept;
 
-        // TODO: Remove it after finishing the GPU system
-        void* NativeResource() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::Texture2DType NativeHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::Texture2DType>(this->NativeHandle());
+        }
+
+        explicit operator bool() const noexcept;
 
         uint32_t Width(uint32_t mip) const noexcept;
         uint32_t Height(uint32_t mip) const noexcept;

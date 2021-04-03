@@ -21,10 +21,14 @@ namespace GoldenSun
         GpuCommandList(GpuCommandList&& other) noexcept;
         GpuCommandList& operator=(GpuCommandList&& other) noexcept;
 
-        explicit operator bool() const noexcept;
+        void* NativeHandle() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::CommandListType NativeHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::CommandListType>(this->NativeHandle());
+        }
 
-        // TODO: Remove it after finishing the GPU system
-        void* NativeCommandList() const noexcept;
+        explicit operator bool() const noexcept;
 
         void Copy(GpuBuffer const& dest, GpuBuffer const& src);
         void Copy(GpuTexture2D const& dest, GpuTexture2D const& src);

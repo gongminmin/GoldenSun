@@ -9,13 +9,13 @@ namespace
 {
     uint32_t descriptor_size[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES]{};
 
-    uint16_t const default_descriptor_page_size[] = {32 * 1024, 1 * 1024, 8 * 1024, 4 * 1024};
+    uint16_t constexpr DescriptorPageSize[] = {32 * 1024, 1 * 1024, 8 * 1024, 4 * 1024};
 
     void UpdateDescriptorSize(GoldenSun::GpuSystem& gpu_system, D3D12_DESCRIPTOR_HEAP_TYPE type)
     {
         if (descriptor_size[type] == 0)
         {
-            descriptor_size[type] = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice())->GetDescriptorHandleIncrementSize(type);
+            descriptor_size[type] = gpu_system.NativeDeviceHandle<GoldenSun::D3D12Traits>()->GetDescriptorHandleIncrementSize(type);
         }
     }
 } // namespace
@@ -50,12 +50,11 @@ namespace GoldenSun
 
     void GpuDescriptorBlock::Reset(GpuDescriptorPage const& page, uint32_t offset, uint32_t size) noexcept
     {
-        native_heap_ = page.Heap().NativeDescriptorHeap();
+        native_heap_ = page.Heap().NativeHandle();
         offset_ = offset;
         size_ = size;
 
-        uint32_t const desc_size = descriptor_size[reinterpret_cast<ID3D12DescriptorHeap*>(native_heap_)->GetDesc().Type];
-
+        uint32_t const desc_size = descriptor_size[this->NativeDescriptorHeapHandle<D3D12Traits>()->GetDesc().Type];
         std::tie(cpu_handle_, gpu_handle_) = OffsetHandle(page.CpuHandleStart(), page.GpuHandleStart(), offset, desc_size);
     }
 
@@ -121,7 +120,7 @@ namespace GoldenSun
             }
         }
 
-        uint16_t const default_page_size = default_descriptor_page_size[type_];
+        uint16_t const default_page_size = DescriptorPageSize[type_];
         assert(size <= default_page_size);
 
         GpuDescriptorPage new_page(*gpu_system_, type_, flags_, default_page_size);
@@ -143,13 +142,13 @@ namespace GoldenSun
     {
         assert(desc_block);
 
-        uint16_t const default_page_size = default_descriptor_page_size[type_];
+        uint16_t const default_page_size = DescriptorPageSize[type_];
 
         if (desc_block.Size() <= default_page_size)
         {
             for (auto& page : pages_)
             {
-                if (page.page.Heap().NativeDescriptorHeap() == desc_block.NativeDescriptorHeap())
+                if (page.page.Heap().NativeHandle() == desc_block.NativeDescriptorHeapHandle())
                 {
                     page.stall_list.push_back(
                         {{static_cast<uint16_t>(desc_block.Offset()), static_cast<uint16_t>(desc_block.Offset() + desc_block.Size())},

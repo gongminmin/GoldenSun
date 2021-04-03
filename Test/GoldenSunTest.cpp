@@ -117,7 +117,7 @@ namespace GoldenSun
                 comparator_cb.UploadToGpu();
             }
 
-            auto* d3d12_device = reinterpret_cast<ID3D12Device*>(gpu_system_.NativeDevice());
+            auto* d3d12_device = gpu_system_.NativeDeviceHandle<D3D12Traits>();
 
             ComPtr<ID3D12RootSignature> root_sig;
             {
@@ -165,12 +165,12 @@ namespace GoldenSun
             }
 
             auto cmd_list = gpu_system_.CreateCommandList();
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
             d3d12_cmd_list->SetComputeRootSignature(root_sig.Get());
             d3d12_cmd_list->SetPipelineState(pso.Get());
 
-            ID3D12DescriptorHeap* heaps[] = {reinterpret_cast<ID3D12DescriptorHeap*>(desc_block.NativeDescriptorHeap())};
+            ID3D12DescriptorHeap* heaps[] = {desc_block.NativeDescriptorHeapHandle<D3D12Traits>()};
             d3d12_cmd_list->SetDescriptorHeaps(static_cast<uint32_t>(std::size(heaps)), heaps);
             d3d12_cmd_list->SetComputeRootDescriptorTable(0, expected_srv_gpu_desc_handle);
             d3d12_cmd_list->SetComputeRootDescriptorTable(1, result_uav_cpu_desc_handle);

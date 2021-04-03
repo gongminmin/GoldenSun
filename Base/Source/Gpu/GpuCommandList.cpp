@@ -75,19 +75,19 @@ namespace GoldenSun
         return impl_ && impl_->operator bool();
     }
 
-    void* GpuCommandList::NativeCommandList() const noexcept
+    void* GpuCommandList::NativeHandle() const noexcept
     {
         return impl_->CommandList();
     }
 
     void GpuCommandList::Copy(GpuBuffer const& dest, GpuBuffer const& src)
     {
-        impl_->Copy(reinterpret_cast<ID3D12Resource*>(dest.NativeResource()), reinterpret_cast<ID3D12Resource*>(src.NativeResource()));
+        impl_->Copy(dest.NativeHandle<D3D12Traits>(), src.NativeHandle<D3D12Traits>());
     }
 
     void GpuCommandList::Copy(GpuTexture2D const& dest, GpuTexture2D const& src)
     {
-        impl_->Copy(reinterpret_cast<ID3D12Resource*>(dest.NativeResource()), reinterpret_cast<ID3D12Resource*>(src.NativeResource()));
+        impl_->Copy(dest.NativeHandle<D3D12Traits>(), src.NativeHandle<D3D12Traits>());
     }
 
     void GpuCommandList::BuildRaytracingAccelerationStructure(D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC const& desc,

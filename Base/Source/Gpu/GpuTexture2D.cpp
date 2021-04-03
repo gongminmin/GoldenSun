@@ -106,7 +106,7 @@ namespace GoldenSun
         {
             if (curr_states_[mip] != target_state)
             {
-                auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+                auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
                 D3D12_RESOURCE_BARRIER barrier;
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -123,7 +123,7 @@ namespace GoldenSun
 
         void Transition(GpuCommandList& cmd_list, D3D12_RESOURCE_STATES target_state) const
         {
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
             if ((curr_states_[0] == target_state) && ((target_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) ||
                                                          (target_state == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)))
@@ -189,7 +189,7 @@ namespace GoldenSun
             uint32_t const height = this->Height(mip);
             uint32_t const format_size = FormatSize(this->Format());
 
-            auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice());
+            auto* d3d12_device = gpu_system.NativeDeviceHandle<D3D12Traits>();
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
             uint32_t num_row = 0;
@@ -209,7 +209,7 @@ namespace GoldenSun
 
             layout.Offset += upload_mem_block.Offset();
             D3D12_TEXTURE_COPY_LOCATION src;
-            src.pResource = reinterpret_cast<ID3D12Resource*>(upload_mem_block.NativeResource());
+            src.pResource = upload_mem_block.NativeBufferHandle<D3D12Traits>();
             src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
             src.PlacedFootprint = layout;
 
@@ -226,7 +226,7 @@ namespace GoldenSun
             src_box.bottom = height;
             src_box.back = 1;
 
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
             auto src_old_state = this->State(0);
             this->Transition(cmd_list, D3D12_RESOURCE_STATE_COPY_DEST);
@@ -244,7 +244,7 @@ namespace GoldenSun
             uint32_t const height = this->Height(mip);
             uint32_t const format_size = FormatSize(this->Format());
 
-            auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice());
+            auto* d3d12_device = gpu_system.NativeDeviceHandle<D3D12Traits>();
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
             uint32_t num_row = 0;
@@ -261,7 +261,7 @@ namespace GoldenSun
 
             layout.Offset = readback_mem_block.Offset();
             D3D12_TEXTURE_COPY_LOCATION dst;
-            dst.pResource = reinterpret_cast<ID3D12Resource*>(readback_mem_block.NativeResource());
+            dst.pResource = readback_mem_block.NativeBufferHandle<D3D12Traits>();
             dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
             dst.PlacedFootprint = layout;
 
@@ -273,7 +273,7 @@ namespace GoldenSun
             src_box.bottom = height;
             src_box.back = 1;
 
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
             auto src_old_state = this->State(0);
             this->Transition(cmd_list, D3D12_RESOURCE_STATE_GENERIC_READ);
@@ -326,7 +326,7 @@ namespace GoldenSun
         return impl_ && impl_->operator bool();
     }
 
-    void* GpuTexture2D::NativeResource() const noexcept
+    void* GpuTexture2D::NativeHandle() const noexcept
     {
         return impl_->Resource();
     }

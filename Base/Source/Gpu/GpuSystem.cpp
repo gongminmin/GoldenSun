@@ -493,7 +493,7 @@ namespace GoldenSun
         {
             cmd_list.Close();
 
-            ID3D12CommandList* cmd_lists[] = {reinterpret_cast<ID3D12CommandList*>(cmd_list.NativeCommandList())};
+            ID3D12CommandList* cmd_lists[] = {cmd_list.NativeHandle<D3D12Traits>()};
             cmd_queue_->ExecuteCommandLists(static_cast<uint32_t>(std::size(cmd_lists)), cmd_lists);
 
             uint64_t const curr_fence_value = fence_vals_[frame_index_];
@@ -544,12 +544,12 @@ namespace GoldenSun
         return impl_->TearingSupported();
     }
 
-    void* GpuSystem::NativeDevice() const noexcept
+    void* GpuSystem::NativeDeviceHandle() const noexcept
     {
         return impl_->Device();
     }
 
-    void* GpuSystem::NativeCommandQueue() const noexcept
+    void* GpuSystem::NativeCommandQueueHandle() const noexcept
     {
         return impl_->CommandQueue();
     }
@@ -615,6 +615,15 @@ namespace GoldenSun
         uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
     {
         return impl_->CreateShaderResourceView(buffer, first_element, num_elements, element_size, cpu_handle);
+    }
+
+    GpuShaderResourceView GpuSystem::CreateShaderResourceView(
+        GpuMemoryBlock const& mem_block, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
+    {
+        assert(mem_block.Offset() / element_size * element_size == mem_block.Offset());
+        assert(mem_block.Size() / element_size * element_size == mem_block.Size());
+        return this->CreateShaderResourceView(GpuBuffer(mem_block.NativeBufferHandle<D3D12Traits>(), D3D12_RESOURCE_STATE_GENERIC_READ),
+            mem_block.Offset() / element_size, mem_block.Size() / element_size, element_size, cpu_handle);
     }
 
     GpuShaderResourceView GpuSystem::CreateShaderResourceView(

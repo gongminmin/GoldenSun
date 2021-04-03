@@ -14,8 +14,8 @@ public:
     {
         auto& gpu_system = TestEnv().GpuSystem();
 
-        auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system.NativeDevice());
-        auto* d3d12_cmd_queue = reinterpret_cast<ID3D12CommandQueue*>(gpu_system.NativeCommandQueue());
+        auto* d3d12_device = gpu_system.NativeDeviceHandle<D3D12Traits>();
+        auto* d3d12_cmd_queue = gpu_system.NativeCommandQueueHandle<D3D12Traits>();
 
         golden_sun_engine_ = Engine(d3d12_device, d3d12_cmd_queue);
     }
@@ -70,17 +70,15 @@ TEST_F(RayCastingTest, SingleObject)
     PbrMaterial mtl;
     mtl.Albedo() = {1.0f, 1.0f, 1.0f};
 
-    ComPtr<ID3D12Resource> vb = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer").NativeResource());
-    ComPtr<ID3D12Resource> ib = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer").NativeResource());
+    auto vb = gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Vertex Buffer");
+    auto ib = gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Index Buffer");
 
     std::vector<Mesh> meshes;
     {
         auto& mesh = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh.AddMaterial(mtl);
-        mesh.AddPrimitive(vb.Get(), ib.Get(), 0);
+        mesh.AddPrimitive(vb.NativeHandle<D3D12Traits>(), ib.NativeHandle<D3D12Traits>(), 0);
 
         MeshInstance instance;
         XMStoreFloat4x4(&instance.transform, XMMatrixIdentity());
@@ -90,8 +88,7 @@ TEST_F(RayCastingTest, SingleObject)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -157,21 +154,17 @@ TEST_F(RayCastingTest, MultipleObjects)
     mtls[0].Albedo() = {1.0f, 1.0f, 1.0f};
     mtls[1].Albedo() = {0.4f, 1.0f, 0.3f};
 
-    ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
-    ComPtr<ID3D12Resource> ib0 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer").NativeResource());
-    ComPtr<ID3D12Resource> vb1 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer").NativeResource());
-    ComPtr<ID3D12Resource> ib1 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer").NativeResource());
+    auto vb0 = gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
+    auto ib0 = gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
+    auto vb1 = gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
+    auto ib1 = gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
     std::vector<Mesh> meshes;
     {
         auto& mesh0 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh0.AddMaterial(mtls[0]);
-        mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
+        mesh0.AddPrimitive(vb0.NativeHandle<D3D12Traits>(), ib0.NativeHandle<D3D12Traits>(), 0);
 
         MeshInstance instance0;
         XMStoreFloat4x4(&instance0.transform, XMMatrixTranslation(-1.5f, 0, 0));
@@ -180,7 +173,7 @@ TEST_F(RayCastingTest, MultipleObjects)
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh1.AddMaterial(mtls[1]);
-        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
+        mesh1.AddPrimitive(vb1.NativeHandle<D3D12Traits>(), ib1.NativeHandle<D3D12Traits>(), 0);
 
         MeshInstance instance1;
         XMStoreFloat4x4(&instance1.transform, XMMatrixScaling(1.5f, 1.5f, 1.5f) * XMMatrixTranslation(+1.5f, 0, 0));
@@ -190,8 +183,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -258,14 +250,10 @@ TEST_F(RayCastingTest, Instancing)
     mtls[1].Albedo() = {0.4f, 1.0f, 0.3f};
     mtls[2].Albedo() = {0.8f, 0.4f, 0.6f};
 
-    ComPtr<ID3D12Resource> vb0 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer").NativeResource());
-    ComPtr<ID3D12Resource> ib0 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer").NativeResource());
-    ComPtr<ID3D12Resource> vb1 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer").NativeResource());
-    ComPtr<ID3D12Resource> ib1 = reinterpret_cast<ID3D12Resource*>(
-        gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer").NativeResource());
+    auto vb0 = gpu_system.CreateUploadBuffer(cube_vertices, sizeof(cube_vertices), L"Cube Vertex Buffer");
+    auto ib0 = gpu_system.CreateUploadBuffer(cube_indices, sizeof(cube_indices), L"Cube Index Buffer");
+    auto vb1 = gpu_system.CreateUploadBuffer(tetrahedron_vertices, sizeof(tetrahedron_vertices), L"Tetrahedron Vertex Buffer");
+    auto ib1 = gpu_system.CreateUploadBuffer(tetrahedron_indices, sizeof(tetrahedron_indices), L"Tetrahedron Index Buffer");
 
     std::vector<Mesh> meshes;
     {
@@ -273,8 +261,8 @@ TEST_F(RayCastingTest, Instancing)
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh0.AddMaterial(mtls[0]);
         mesh0.AddMaterial(mtls[1]);
-        mesh0.AddPrimitive(vb0.Get(), ib0.Get(), 0);
-        mesh0.AddPrimitive(vb1.Get(), ib1.Get(), 1);
+        mesh0.AddPrimitive(vb0.NativeHandle<D3D12Traits>(), ib0.NativeHandle<D3D12Traits>(), 0);
+        mesh0.AddPrimitive(vb1.NativeHandle<D3D12Traits>(), ib1.NativeHandle<D3D12Traits>(), 1);
 
         MeshInstance instance0;
         XMStoreFloat4x4(&instance0.transform, XMMatrixTranslation(-1.5f, 0, 0));
@@ -287,7 +275,7 @@ TEST_F(RayCastingTest, Instancing)
         auto& mesh1 = meshes.emplace_back(DXGI_FORMAT_R32G32B32_FLOAT, static_cast<uint32_t>(sizeof(Vertex)), DXGI_FORMAT_R16_UINT,
             static_cast<uint32_t>(sizeof(uint16_t)));
         mesh1.AddMaterial(mtls[2]);
-        mesh1.AddPrimitive(vb1.Get(), ib1.Get(), 0);
+        mesh1.AddPrimitive(vb1.NativeHandle<D3D12Traits>(), ib1.NativeHandle<D3D12Traits>(), 0);
 
         MeshInstance instance1;
         XMStoreFloat4x4(&instance1.transform, XMMatrixScaling(0.75f, 0.75f, 0.75f) * XMMatrixTranslation(+1.5f, 0, 0));
@@ -297,8 +285,7 @@ TEST_F(RayCastingTest, Instancing)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -350,8 +337,7 @@ TEST_F(RayCastingTest, Mesh)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -411,8 +397,7 @@ TEST_F(RayCastingTest, MeshShadowed)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -465,8 +450,7 @@ TEST_F(RayCastingTest, Transparent)
     golden_sun_engine_.Meshes(meshes.data(), static_cast<uint32_t>(meshes.size()));
 
     auto cmd_list = gpu_system.CreateCommandList();
-    auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
-    golden_sun_engine_.Render(d3d12_cmd_list);
+    golden_sun_engine_.Render(cmd_list.NativeHandle<D3D12Traits>());
     gpu_system.Execute(std::move(cmd_list));
 
     GpuTexture2D actual_image(golden_sun_engine_.Output(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

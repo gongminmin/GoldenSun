@@ -38,7 +38,7 @@ namespace GoldenSun
                 srv_desc.Format = DXGI_FORMAT_UNKNOWN;
                 srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
             }
-            device->CreateShaderResourceView(reinterpret_cast<ID3D12Resource*>(buffer.NativeResource()), &srv_desc, cpu_handle);
+            device->CreateShaderResourceView(buffer.NativeHandle<D3D12Traits>(), &srv_desc, cpu_handle);
         }
 
         Impl(ID3D12Device5* device, GpuTexture2D const& texture, DXGI_FORMAT format, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
@@ -52,7 +52,7 @@ namespace GoldenSun
             srv_desc.Texture2D.MipLevels = texture.MipLevels();
             srv_desc.Texture2D.PlaneSlice = 0;
             srv_desc.Texture2D.ResourceMinLODClamp = 0;
-            device->CreateShaderResourceView(reinterpret_cast<ID3D12Resource*>(texture.NativeResource()), &srv_desc, cpu_handle);
+            device->CreateShaderResourceView(texture.NativeHandle<D3D12Traits>(), &srv_desc, cpu_handle);
         }
 
         explicit operator bool() const noexcept
@@ -100,7 +100,7 @@ namespace GoldenSun
             D3D12_RENDER_TARGET_VIEW_DESC rtv_desc{};
             rtv_desc.Format = (format == DXGI_FORMAT_UNKNOWN) ? texture.Format() : format;
             rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-            device->CreateRenderTargetView(reinterpret_cast<ID3D12Resource*>(texture.NativeResource()), &rtv_desc, cpu_handle);
+            device->CreateRenderTargetView(texture.NativeHandle<D3D12Traits>(), &rtv_desc, cpu_handle);
         }
 
         explicit operator bool() const noexcept
@@ -151,7 +151,7 @@ namespace GoldenSun
             uav_desc.Buffer.FirstElement = first_element;
             uav_desc.Buffer.NumElements = num_elements;
             uav_desc.Buffer.StructureByteStride = element_size;
-            device->CreateUnorderedAccessView(reinterpret_cast<ID3D12Resource*>(buffer.NativeResource()), nullptr, &uav_desc, cpu_handle);
+            device->CreateUnorderedAccessView(buffer.NativeHandle<D3D12Traits>(), nullptr, &uav_desc, cpu_handle);
         }
 
         Impl(ID3D12Device5* device, GpuTexture2D const& texture, DXGI_FORMAT format, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle)
@@ -160,7 +160,7 @@ namespace GoldenSun
             D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc{};
             uav_desc.Format = format;
             uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-            device->CreateUnorderedAccessView(reinterpret_cast<ID3D12Resource*>(texture.NativeResource()), nullptr, &uav_desc, cpu_handle);
+            device->CreateUnorderedAccessView(texture.NativeHandle<D3D12Traits>(), nullptr, &uav_desc, cpu_handle);
         }
 
         explicit operator bool() const noexcept

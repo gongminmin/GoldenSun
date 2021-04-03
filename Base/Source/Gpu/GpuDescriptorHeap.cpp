@@ -93,7 +93,7 @@ namespace GoldenSun
         return impl_ && impl_->operator bool();
     }
 
-    void* GpuDescriptorHeap::NativeDescriptorHeap() const noexcept
+    void* GpuDescriptorHeap::NativeHandle() const noexcept
     {
         return impl_->DescriptorHeap();
     }

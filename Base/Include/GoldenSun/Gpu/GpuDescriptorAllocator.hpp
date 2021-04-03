@@ -55,15 +55,19 @@ namespace GoldenSun
         void Reset() noexcept;
         void Reset(GpuDescriptorPage const& page, uint32_t offset, uint32_t size) noexcept;
 
+        void* NativeDescriptorHeapHandle() const noexcept
+        {
+            return native_heap_;
+        }
+        template <typename ApiTraits>
+        typename ApiTraits::DescriptorHeapType NativeDescriptorHeapHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::DescriptorHeapType>(this->NativeDescriptorHeapHandle());
+        }
+
         explicit operator bool() const noexcept
         {
             return (native_heap_ != nullptr);
-        }
-
-        // TODO: Remove it after finishing the GPU system
-        void* NativeDescriptorHeap() const noexcept
-        {
-            return native_heap_;
         }
 
         uint32_t Offset() const noexcept

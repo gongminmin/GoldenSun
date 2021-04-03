@@ -39,8 +39,8 @@ namespace GoldenSun
         this->CreateDeviceResources();
         this->CreateWindowSizeDependentResources();
 
-        auto* d3d12_device = reinterpret_cast<ID3D12Device5*>(gpu_system_.NativeDevice());
-        auto* d3d12_cmd_queue = reinterpret_cast<ID3D12CommandQueue*>(gpu_system_.NativeCommandQueue());
+        auto* d3d12_device = gpu_system_.NativeDeviceHandle<D3D12Traits>();
+        auto* d3d12_cmd_queue = gpu_system_.NativeCommandQueueHandle<D3D12Traits>();
 
         golden_sun_engine_ = Engine(d3d12_device, d3d12_cmd_queue);
         golden_sun_engine_.RenderTarget(width_, height_, back_buffer_fmt_);
@@ -142,7 +142,7 @@ namespace GoldenSun
         {
             auto cmd_list = gpu_system_.CreateCommandList();
 
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
             golden_sun_engine_.Render(d3d12_cmd_list);
 
             auto& render_target = render_targets_[gpu_system_.FrameIndex()];

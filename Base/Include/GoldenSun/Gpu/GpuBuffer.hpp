@@ -27,8 +27,12 @@ namespace GoldenSun
 
         explicit operator bool() const noexcept;
 
-        // TODO: Remove it after finishing the GPU system
-        void* NativeResource() const noexcept;
+        void* NativeHandle() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::BufferType NativeHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::BufferType>(this->NativeHandle());
+        }
 
         D3D12_GPU_VIRTUAL_ADDRESS GpuVirtualAddress() const noexcept;
         uint32_t Size() const noexcept;

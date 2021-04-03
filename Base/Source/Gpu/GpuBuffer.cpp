@@ -119,7 +119,7 @@ namespace GoldenSun
 
         void Transition(GpuCommandList& cmd_list, D3D12_RESOURCE_STATES target_state) const
         {
-            auto* d3d12_cmd_list = reinterpret_cast<ID3D12GraphicsCommandList4*>(cmd_list.NativeCommandList());
+            auto* d3d12_cmd_list = cmd_list.NativeHandle<D3D12Traits>();
 
             D3D12_RESOURCE_BARRIER barrier;
             if (curr_state_ != target_state)
@@ -174,7 +174,7 @@ namespace GoldenSun
         return impl_ && impl_->operator bool();
     }
 
-    void* GpuBuffer::NativeResource() const noexcept
+    void* GpuBuffer::NativeHandle() const noexcept
     {
         return impl_->Resource();
     }

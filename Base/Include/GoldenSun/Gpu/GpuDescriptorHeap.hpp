@@ -27,10 +27,14 @@ namespace GoldenSun
         GpuDescriptorHeap(GpuDescriptorHeap&& other) noexcept;
         GpuDescriptorHeap& operator=(GpuDescriptorHeap&& other) noexcept;
 
-        explicit operator bool() const noexcept;
+        void* NativeHandle() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::DescriptorHeapType NativeHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::DescriptorHeapType>(this->NativeHandle());
+        }
 
-        // TODO: Remove it after finishing the GPU system
-        void* NativeDescriptorHeap() const noexcept;
+        explicit operator bool() const noexcept;
 
         D3D12_CPU_DESCRIPTOR_HANDLE CpuHandleStart() const noexcept;
         D3D12_GPU_DESCRIPTOR_HANDLE GpuHandleStart() const noexcept;

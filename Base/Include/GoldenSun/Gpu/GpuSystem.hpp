@@ -10,12 +10,12 @@
 #include <GoldenSun/Gpu/GpuTexture2D.hpp>
 #include <GoldenSun/ImplPtr.hpp>
 
+#include <GoldenSun/Gpu/GpuSystemD3D12.hpp>
+
 #include <string_view>
 
 namespace GoldenSun
 {
-    class GpuSystemInternalD3D12;
-
     class GpuSystem final
     {
         DISALLOW_COPY_AND_ASSIGN(GpuSystem)
@@ -30,8 +30,19 @@ namespace GoldenSun
 
         bool TearingSupported() const noexcept;
 
-        void* NativeDevice() const noexcept;
-        void* NativeCommandQueue() const noexcept;
+        void* NativeDeviceHandle() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::DeviceType NativeDeviceHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::DeviceType>(this->NativeDeviceHandle());
+        }
+
+        void* NativeCommandQueueHandle() const noexcept;
+        template <typename ApiTraits>
+        typename ApiTraits::CommandQueueType NativeCommandQueueHandle() const noexcept
+        {
+            return reinterpret_cast<typename ApiTraits::CommandQueueType>(this->NativeCommandQueueHandle());
+        }
 
         uint32_t FrameIndex() const noexcept;
         static uint32_t constexpr FrameCount() noexcept
@@ -60,6 +71,8 @@ namespace GoldenSun
 
         GpuShaderResourceView CreateShaderResourceView(GpuBuffer const& buffer, uint32_t first_element, uint32_t num_elements,
             uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
+        GpuShaderResourceView CreateShaderResourceView(
+            GpuMemoryBlock const& mem_block, uint32_t element_size, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
         GpuShaderResourceView CreateShaderResourceView(
             GpuTexture2D const& texture, DXGI_FORMAT format, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);
         GpuShaderResourceView CreateShaderResourceView(GpuTexture2D const& texture, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle);

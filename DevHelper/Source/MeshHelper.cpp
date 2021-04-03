@@ -265,9 +265,8 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_DIFFUSE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::Albedo,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource()));
+                auto texture = LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+                material.Texture(PbrMaterial::TextureSlot::Albedo, texture.NativeHandle<D3D12Traits>());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_UNKNOWN) > 0)
@@ -275,27 +274,24 @@ namespace
                 aiString str;
                 aiGetMaterialTexture(mtl, AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE, &str, nullptr, nullptr, nullptr,
                     nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::MetallicRoughness,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
+                auto texture = LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.Texture(PbrMaterial::TextureSlot::MetallicRoughness, texture.NativeHandle<D3D12Traits>());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_EMISSIVE) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_EMISSIVE, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::Emissive,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB).NativeResource()));
+                auto texture = LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+                material.Texture(PbrMaterial::TextureSlot::Emissive, texture.NativeHandle<D3D12Traits>());
             }
 
             if (aiGetMaterialTextureCount(mtl, aiTextureType_NORMALS) > 0)
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_NORMALS, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::Normal,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
+                auto texture = LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.Texture(PbrMaterial::TextureSlot::Normal, texture.NativeHandle<D3D12Traits>());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), &ai_normal_scale);
                 material.NormalScale() = ai_normal_scale;
@@ -305,9 +301,8 @@ namespace
             {
                 aiString str;
                 aiGetMaterialTexture(mtl, aiTextureType_LIGHTMAP, 0, &str, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-                material.Texture(PbrMaterial::TextureSlot::Occlusion,
-                    reinterpret_cast<ID3D12Resource*>(
-                        LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM).NativeResource()));
+                auto texture = LoadTexture(gpu_system, (asset_path / str.C_Str()).string(), DXGI_FORMAT_R8G8B8A8_UNORM);
+                material.Texture(PbrMaterial::TextureSlot::Occlusion, texture.NativeHandle<D3D12Traits>());
 
                 aiGetMaterialFloat(mtl, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), &ai_occlusion_strength);
                 material.OcclusionStrength() = ai_occlusion_strength;
@@ -425,8 +420,7 @@ namespace
                 flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
             }
 
-            new_mesh.AddPrimitive(
-                reinterpret_cast<ID3D12Resource*>(vb.NativeResource()), reinterpret_cast<ID3D12Resource*>(ib.NativeResource()), 0, flags);
+            new_mesh.AddPrimitive(vb.NativeHandle<D3D12Traits>(), ib.NativeHandle<D3D12Traits>(), 0, flags);
         }
 
         return meshes;

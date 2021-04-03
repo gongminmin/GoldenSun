@@ -7,7 +7,7 @@
 
 namespace
 {
-    static constexpr uint32_t DefaultPageSize = 2 * 1024 * 1024;
+    static constexpr uint32_t PageSize = 2 * 1024 * 1024;
 }
 
 namespace GoldenSun
@@ -66,7 +66,7 @@ namespace GoldenSun
 
     void GpuMemoryBlock::Reset() noexcept
     {
-        native_resource_ = nullptr;
+        native_buffer_ = nullptr;
         offset_ = 0;
         size_ = 0;
         cpu_addr_ = nullptr;
@@ -75,7 +75,7 @@ namespace GoldenSun
 
     void GpuMemoryBlock::Reset(GpuMemoryPage const& page, uint32_t offset, uint32_t size) noexcept
     {
-        native_resource_ = page.Buffer().NativeResource();
+        native_buffer_ = page.Buffer().NativeHandle<D3D12Traits>();
         offset_ = offset;
         size_ = size;
         cpu_addr_ = page.CpuAddress<uint8_t>() + offset;
@@ -123,7 +123,7 @@ namespace GoldenSun
 
         uint32_t const aligned_size = (size_in_bytes + alignment_mask) & ~alignment_mask;
 
-        if (aligned_size > DefaultPageSize)
+        if (aligned_size > PageSize)
         {
             auto& large_page = large_pages_.emplace_back(GpuMemoryPage(*gpu_system_, is_upload_, aligned_size));
             mem_block.Reset(large_page, 0, size_in_bytes);
@@ -136,7 +136,7 @@ namespace GoldenSun
                 [](PageInfo::FreeRange const& free_range, uint32_t s) { return free_range.first_offset + s > free_range.last_offset; });
             if (iter != page_info.free_list.end())
             {
-                mem_block.Reset(page_info.page, iter->first_offset, aligned_size);
+                mem_block.Reset(page_info.page, iter->first_offset, size_in_bytes);
                 iter->first_offset += aligned_size;
                 if (iter->first_offset == iter->last_offset)
                 {
@@ -147,9 +147,9 @@ namespace GoldenSun
             }
         }
 
-        GpuMemoryPage new_page(*gpu_system_, is_upload_, DefaultPageSize);
-        mem_block.Reset(new_page, 0, aligned_size);
-        pages_.emplace_back(PageInfo{std::move(new_page), {{aligned_size, DefaultPageSize}}, {}});
+        GpuMemoryPage new_page(*gpu_system_, is_upload_, PageSize);
+        mem_block.Reset(new_page, 0, size_in_bytes);
+        pages_.emplace_back(PageInfo{std::move(new_page), {{aligned_size, PageSize}}, {}});
     }
 
     void GpuMemoryAllocator::Deallocate(GpuMemoryBlock&& mem_block, uint64_t fence_value)
@@ -166,11 +166,11 @@ namespace GoldenSun
     {
         assert(mem_block);
 
-        if (mem_block.Size() <= DefaultPageSize)
+        if (mem_block.Size() <= PageSize)
         {
             for (auto& page : pages_)
             {
-                if (page.page.Buffer().NativeResource() == mem_block.NativeResource())
+                if (page.page.Buffer().NativeHandle() == mem_block.NativeBufferHandle())
                 {
                     page.stall_list.push_back({{mem_block.Offset(), mem_block.Offset() + mem_block.Size()}, fence_value});
                     return;
