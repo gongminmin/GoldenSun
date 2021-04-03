@@ -559,7 +559,8 @@ namespace
     struct SceneConstantBuffer
     {
         alignas(4) XMFLOAT4X4 inv_view_proj;
-        alignas(4) XMFLOAT4 camera_pos;
+        alignas(4) XMFLOAT4 bg_color;
+        alignas(4) XMFLOAT3 camera_pos;
         alignas(4) uint32_t is_srgb_output;
     };
 
@@ -640,8 +641,10 @@ namespace GoldenSun
             this->ReleaseWindowSizeDependentResources();
         }
 
-        void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format)
+        void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format, XMFLOAT4 const& bg_color)
         {
+            bg_color_ = bg_color;
+
             if ((width != width_) || (height != height_) || (format != format_))
             {
                 width_ = width;
@@ -781,7 +784,8 @@ namespace GoldenSun
             d3d12_cmd_list->SetComputeRootSignature(ray_tracing_global_root_signature_.Get());
 
             {
-                per_frame_constants_->camera_pos = XMFLOAT4(camera_.Eye().x, camera_.Eye().y, camera_.Eye().z, 1);
+                per_frame_constants_->bg_color = bg_color_;
+                per_frame_constants_->camera_pos = camera_.Eye();
                 per_frame_constants_->is_srgb_output = IsSrgbFormat(format_);
 
                 auto const view =
@@ -1151,6 +1155,7 @@ namespace GoldenSun
         uint32_t height_ = 0;
         float aspect_ratio_ = 0;
         DXGI_FORMAT format_ = DXGI_FORMAT_UNKNOWN;
+        XMFLOAT4 bg_color_{};
 
         ConstantBuffer<SceneConstantBuffer> per_frame_constants_;
 
@@ -1243,7 +1248,21 @@ namespace GoldenSun
 
     void Engine::RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format)
     {
-        return impl_->RenderTarget(width, height, format);
+        XMVECTOR default_bg_color = XMVectorSet(0.2f, 0.4f, 0.6f, 1.0f);
+        if (IsSrgbFormat(format))
+        {
+            default_bg_color = XMColorSRGBToRGB(default_bg_color);
+        }
+
+        XMFLOAT4 bg_color;
+        XMStoreFloat4(&bg_color, default_bg_color);
+
+        return impl_->RenderTarget(width, height, format, bg_color);
+    }
+
+    void Engine::RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format, XMFLOAT4 const& bg_color)
+    {
+        return impl_->RenderTarget(width, height, format, bg_color);
     }
 
     void Engine::Meshes(Mesh const* meshes, uint32_t num_meshes)

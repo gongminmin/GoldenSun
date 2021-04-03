@@ -26,6 +26,7 @@ namespace GoldenSun
         Engine& operator=(Engine&& other) noexcept;
 
         void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format);
+        void RenderTarget(uint32_t width, uint32_t height, DXGI_FORMAT format, DirectX::XMFLOAT4 const& bg_color);
         void Meshes(Mesh const* meshes, uint32_t num_meshes);
         void Lights(PointLight const* lights, uint32_t num_lights);
         void Camera(Camera const& camera);

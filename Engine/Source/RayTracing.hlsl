@@ -36,7 +36,8 @@ namespace TraceRayParameters
 struct SceneConstantBuffer
 {
     float4x4 inv_view_proj;
-    float4 camera_pos;
+    float4 bg_color;
+    float3 camera_pos;
     bool is_srgb_output;
 };
 
@@ -222,12 +223,6 @@ float3 LinearToSrgb(float3 color)
 {
     float const ALPHA = 0.055f;
     return (color < 0.0031308f) ? color * 12.92f : ((1 + ALPHA) * pow(color, 1 / 2.4f) - ALPHA);
-}
-
-float3 SrgbToLinear(float3 color)
-{
-    float const ALPHA = 0.055f;
-    return (color < 0.04045f) ? color / 12.92f : pow((color + ALPHA) / (1 + ALPHA), 2.4f);
 }
 
 [shader("raygeneration")]
@@ -421,13 +416,7 @@ void ClosestHitShader(inout RadianceRayPayload payload, in BuiltInTriangleInters
 [shader("miss")]
 void MissShaderRadianceRay(inout RadianceRayPayload payload)
 {
-    float4 background = float4(0.2f, 0.4f, 0.6f, 1.0f);
-    if (scene_cb.is_srgb_output)
-    {
-        background.rgb = SrgbToLinear(background.rgb);
-    }
-
-    payload.color = background;
+    payload.color = scene_cb.bg_color;
 }
 
 [shader("miss")]
