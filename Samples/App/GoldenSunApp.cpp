@@ -15,8 +15,21 @@ using namespace DirectX;
 
 namespace
 {
-    const std::wstring WindowTitle = L"Golden Sun";
-}
+    std::wstring const WindowTitle = L"Golden Sun";
+
+    XMFLOAT3 constexpr init_eye = {0.0f, 1.0f, -3.0f};
+    XMFLOAT3 constexpr init_look_at = {0.0f, 0.0f, 0.0f};
+    XMFLOAT3 constexpr init_up = {0.0f, 1.0f, 0.0f};
+
+    float constexpr init_fov = XMConvertToRadians(45);
+    float constexpr init_near_plane = 0.1f;
+    float constexpr init_far_plane = 20;
+
+    XMFLOAT3 constexpr init_light_pos = {0.0f, 1.8f, -3.0f};
+    XMFLOAT3 constexpr init_light_color = {20.0f, 20.0f, 20.0f};
+    XMFLOAT3 constexpr init_light_falloff = {1, 0, 1};
+    bool constexpr init_light_shadowing = true;
+} // namespace
 
 namespace GoldenSun
 {
@@ -76,21 +89,21 @@ namespace GoldenSun
     void GoldenSunApp::InitializeScene()
     {
         {
-            camera_.Eye() = {0.0f, 1.0f, -3.0f};
-            camera_.LookAt() = {0.0f, 0.0f, 0.0f};
-            camera_.Up() = {0.0f, 1.0f, 0.0f};
+            camera_.Eye() = init_eye;
+            camera_.LookAt() = init_look_at;
+            camera_.Up() = init_up;
 
-            camera_.Fov() = XMConvertToRadians(45);
-            camera_.NearPlane() = 0.1f;
-            camera_.FarPlane() = 20;
+            camera_.Fov() = init_fov;
+            camera_.NearPlane() = init_near_plane;
+            camera_.FarPlane() = init_far_plane;
 
             golden_sun_engine_.Camera(camera_);
         }
         {
-            light_.Position() = {0.0f, 1.8f, -3.0f};
-            light_.Color() = {20.0f, 20.0f, 20.0f};
-            light_.Falloff() = {1, 0, 1};
-            light_.Shadowing() = true;
+            light_.Position() = init_light_pos;
+            light_.Color() = init_light_color;
+            light_.Falloff() = init_light_falloff;
+            light_.Shadowing() = init_light_shadowing;
 
             golden_sun_engine_.Lights(&light_, 1);
         }
@@ -110,20 +123,17 @@ namespace GoldenSun
 
         {
             float const seconds_to_rotate_around = 12.0f;
-            float const rotate = XMConvertToRadians(360.0f * (frame_time_ / seconds_to_rotate_around));
+            float const rotate = XMConvertToRadians(360.0f * (app_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationY(rotate);
-            XMStoreFloat3(&camera_.Eye(), XMVector3Transform(XMLoadFloat3(&camera_.Eye()), rotate_mat));
-            XMStoreFloat3(&camera_.LookAt(), XMVector3Transform(XMLoadFloat3(&camera_.LookAt()), rotate_mat));
-            XMStoreFloat3(&camera_.Up(), XMVector3Transform(XMLoadFloat3(&camera_.Up()), rotate_mat));
+            XMStoreFloat3(&camera_.Eye(), XMVector3Transform(XMLoadFloat3(&init_eye), rotate_mat));
 
             golden_sun_engine_.Camera(camera_);
         }
         {
             float const seconds_to_rotate_around = 8.0f;
-            float const rotate = XMConvertToRadians(-360.0f * (frame_time_ / seconds_to_rotate_around));
+            float const rotate = XMConvertToRadians(-360.0f * (app_time_ / seconds_to_rotate_around));
             XMMATRIX const rotate_mat = XMMatrixRotationZ(rotate) * XMMatrixRotationY(rotate);
-
-            XMStoreFloat3(&light_.Position(), XMVector3Transform(XMLoadFloat3(&light_.Position()), rotate_mat));
+            XMStoreFloat3(&light_.Position(), XMVector3Transform(XMLoadFloat3(&init_light_pos), rotate_mat));
 
             golden_sun_engine_.Lights(&light_, 1);
         }
