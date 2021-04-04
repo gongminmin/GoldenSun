@@ -339,7 +339,7 @@ namespace
             {
                 assert(ai_mesh->mFaces[fi].mNumIndices == 3);
 
-                // TODO: Support 32-bit index
+                // TODO #16: Support 32-bit index
                 for (uint32_t ii = 0; ii < ai_mesh->mFaces[fi].mNumIndices; ++ii)
                 {
                     assert(ai_mesh->mFaces[fi].mIndices[ii] <= 0xFFFFU);

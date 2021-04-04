@@ -49,7 +49,7 @@ namespace GoldenSun
         PbrMaterial& Material(uint32_t material_id) noexcept;
         PbrMaterial const& Material(uint32_t material_id) const noexcept;
 
-        // TODO: Support adding a region of buffers as a primitive
+        // TODO #17: Support adding a region of buffers as a primitive
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id);
         uint32_t AddPrimitive(ID3D12Resource* vb, ID3D12Resource* ib, uint32_t material_id, D3D12_RAYTRACING_GEOMETRY_FLAGS flags);
 

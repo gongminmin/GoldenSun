@@ -95,7 +95,7 @@ namespace GoldenSun
             return 4;
 
         default:
-            // TODO: Support more formats
+            // TODO #15: Support more formats
             assert(false);
             return 0;
         }

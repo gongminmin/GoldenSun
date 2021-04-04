@@ -154,7 +154,7 @@ namespace GoldenSun
                 auto& geometry_desc = ret.emplace_back();
                 geometry_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
                 geometry_desc.Flags = primitive.flags;
-                geometry_desc.Triangles.Transform3x4 = 0; // TODO: Support per-primitive transform
+                geometry_desc.Triangles.Transform3x4 = 0; // TODO #18: Support per-primitive transform
                 geometry_desc.Triangles.VertexBuffer = primitive.vb.vertex_buffer;
                 geometry_desc.Triangles.VertexCount = primitive.vb.count;
                 geometry_desc.Triangles.VertexFormat = vertex_format_;
