@@ -285,7 +285,7 @@ namespace GoldenSun
     }
 
 
-    PbrMaterialBuffer const& EngineInternal::Buffer(PbrMaterial const& material)
+    PbrMaterialBuffer const& EngineInternal::Buffer(PbrMaterial const& material) noexcept
     {
         return material.impl_->Buffer();
     }

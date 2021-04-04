@@ -31,16 +31,15 @@ namespace GoldenSun
         alignas(4) DirectX::XMFLOAT3 color;
         alignas(4) DirectX::XMFLOAT3 falloff;
         alignas(4) uint32_t shadowing;
-        alignas(4) uint8_t paddings[24]{};
+        alignas(4) uint8_t paddings[8]{};
     };
     static_assert(sizeof(LightBuffer) % 16 == 0);
-    static_assert(sizeof(LightBuffer) % 64 == 0); // TODO: Remove this after GpuMemoryAllocator can allocate an aligned address
 
     class EngineInternal final
     {
     public:
         static std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> GeometryDescs(Mesh const& mesh);
-        static PbrMaterialBuffer const& Buffer(PbrMaterial const& material);
-        static LightBuffer const& Buffer(PointLight const& light);
+        static PbrMaterialBuffer const& Buffer(PbrMaterial const& material) noexcept;
+        static LightBuffer const& Buffer(PointLight const& light) noexcept;
     };
 } // namespace GoldenSun

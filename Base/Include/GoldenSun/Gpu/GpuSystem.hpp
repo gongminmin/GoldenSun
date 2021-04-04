@@ -108,12 +108,12 @@ namespace GoldenSun
         void DeallocSamplerDescBlock(GpuDescriptorBlock&& desc_block);
         void ReallocSamplerDescBlock(GpuDescriptorBlock& desc_block, uint32_t size);
 
-        GpuMemoryBlock AllocUploadMemBlock(uint32_t size_in_bytes);
+        GpuMemoryBlock AllocUploadMemBlock(uint32_t size_in_bytes, uint32_t alignment);
         void DeallocUploadMemBlock(GpuMemoryBlock&& mem_block);
-        void ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes);
-        GpuMemoryBlock AllocReadbackMemBlock(uint32_t size_in_bytes);
+        void ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment);
+        GpuMemoryBlock AllocReadbackMemBlock(uint32_t size_in_bytes, uint32_t alignment);
         void DeallocReadbackMemBlock(GpuMemoryBlock&& mem_block);
-        void ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes);
+        void ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment);
 
         void WaitForGpu();
         void ResetFenceValues();

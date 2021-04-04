@@ -11,6 +11,7 @@
 #include <cassert>
 #include <iomanip>
 #include <list>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -688,7 +689,8 @@ namespace GoldenSun
                 material_texs_.clear();
                 material_texs_.reserve(num_materials * num_textures);
 
-                gpu_system_.ReallocUploadMemBlock(material_mem_block_, num_materials * sizeof(PbrMaterialBuffer));
+                uint32_t constexpr Alignment = std::lcm<uint32_t>(sizeof(PbrMaterialBuffer), GpuMemoryAllocator::StructuredDataAligment);
+                gpu_system_.ReallocUploadMemBlock(material_mem_block_, num_materials * sizeof(PbrMaterialBuffer), Alignment);
                 auto* material_mem = material_mem_block_.CpuAddress<PbrMaterialBuffer>();
 
                 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS build_flags =
@@ -755,9 +757,8 @@ namespace GoldenSun
 
         void Lights(PointLight const* lights, uint32_t num_lights)
         {
-            num_lights_ = num_lights;
-
-            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(LightBuffer));
+            uint32_t constexpr Alignment = std::lcm<uint32_t>(sizeof(LightBuffer), GpuMemoryAllocator::StructuredDataAligment);
+            gpu_system_.ReallocUploadMemBlock(light_mem_block_, num_lights * sizeof(LightBuffer), Alignment);
             auto* light_mem = light_mem_block_.CpuAddress<LightBuffer>();
             for (uint32_t i = 0; i < num_lights; ++i)
             {
@@ -1169,7 +1170,6 @@ namespace GoldenSun
         std::vector<uint32_t> primitive_start_;
         std::vector<uint32_t> material_start_;
         std::vector<uint32_t> material_ids_;
-        uint32_t num_lights_ = 0;
 
         struct MeshBuffer
         {

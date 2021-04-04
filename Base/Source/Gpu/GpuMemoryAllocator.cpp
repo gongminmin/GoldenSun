@@ -7,8 +7,10 @@
 
 namespace
 {
-    static constexpr uint32_t PageSize = 2 * 1024 * 1024;
-}
+    uint32_t constexpr PageSize = 2 * 1024 * 1024;
+    uint32_t constexpr SegmentSize = 512;
+    uint32_t constexpr SegmentMask = SegmentSize - 1;
+} // namespace
 
 namespace GoldenSun
 {
@@ -118,10 +120,8 @@ namespace GoldenSun
     void GpuMemoryAllocator::Allocate(
         [[maybe_unused]] std::lock_guard<std::mutex>& proof_of_lock, GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment)
     {
-        uint32_t const alignment_mask = alignment - 1;
-        assert((alignment & alignment_mask) == 0);
-
-        uint32_t const aligned_size = (size_in_bytes + alignment_mask) & ~alignment_mask;
+        assert(alignment <= SegmentSize);
+        uint32_t const aligned_size = ((size_in_bytes + alignment - 1) / alignment * alignment + SegmentMask) & ~SegmentMask;
 
         if (aligned_size > PageSize)
         {
@@ -136,7 +136,8 @@ namespace GoldenSun
                 [](PageInfo::FreeRange const& free_range, uint32_t s) { return free_range.first_offset + s > free_range.last_offset; });
             if (iter != page_info.free_list.end())
             {
-                mem_block.Reset(page_info.page, iter->first_offset, size_in_bytes);
+                uint32_t const aligned_offset = (iter->first_offset + alignment - 1) / alignment * alignment;
+                mem_block.Reset(page_info.page, aligned_offset, size_in_bytes);
                 iter->first_offset += aligned_size;
                 if (iter->first_offset == iter->last_offset)
                 {
@@ -172,7 +173,9 @@ namespace GoldenSun
             {
                 if (page.page.Buffer().NativeHandle() == mem_block.NativeBufferHandle())
                 {
-                    page.stall_list.push_back({{mem_block.Offset(), mem_block.Offset() + mem_block.Size()}, fence_value});
+                    uint32_t const offset = mem_block.Offset() & ~SegmentMask;
+                    uint32_t const size = (mem_block.Offset() + mem_block.Size() - offset + SegmentMask) & ~SegmentMask;
+                    page.stall_list.push_back({{offset, offset + size}, fence_value});
                     return;
                 }
             }

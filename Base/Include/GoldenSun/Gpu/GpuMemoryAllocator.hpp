@@ -115,7 +115,9 @@ namespace GoldenSun
         DISALLOW_COPY_AND_ASSIGN(GpuMemoryAllocator)
 
     public:
-        static constexpr uint32_t DefaultAligment = D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT;
+        static constexpr uint32_t ConstantDataAligment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+        static constexpr uint32_t StructuredDataAligment = D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT;
+        static constexpr uint32_t TextureDataAligment = D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT;
 
     public:
         GpuMemoryAllocator(GpuSystem& gpu_system, bool is_upload) noexcept;
@@ -123,9 +125,9 @@ namespace GoldenSun
         GpuMemoryAllocator(GpuMemoryAllocator&& other) noexcept;
         GpuMemoryAllocator& operator=(GpuMemoryAllocator&& other) noexcept;
 
-        GpuMemoryBlock Allocate(uint32_t size_in_bytes, uint32_t alignment = DefaultAligment);
+        GpuMemoryBlock Allocate(uint32_t size_in_bytes, uint32_t alignment);
         void Deallocate(GpuMemoryBlock&& mem_block, uint64_t fence_value);
-        void Reallocate(GpuMemoryBlock& mem_block, uint64_t fence_value, uint32_t size_in_bytes, uint32_t alignment = DefaultAligment);
+        void Reallocate(GpuMemoryBlock& mem_block, uint64_t fence_value, uint32_t size_in_bytes, uint32_t alignment);
 
         void ClearStallPages(uint64_t fence_value);
         void Clear();

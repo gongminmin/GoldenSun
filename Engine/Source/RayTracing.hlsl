@@ -47,8 +47,7 @@ struct Light
     float3 color;
     float3 falloff;
     bool shadowing;
-    uint4 paddings0;
-    uint2 paddings1;
+    uint2 paddings;
 };
 
 struct PbrMaterial

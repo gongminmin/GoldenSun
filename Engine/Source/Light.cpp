@@ -146,7 +146,7 @@ namespace GoldenSun
     }
 
 
-    LightBuffer const& EngineInternal::Buffer(PointLight const& light)
+    LightBuffer const& EngineInternal::Buffer(PointLight const& light) noexcept
     {
         return light.impl_->Buffer();
     }

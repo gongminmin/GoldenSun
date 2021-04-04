@@ -403,9 +403,9 @@ namespace GoldenSun
             return sampler_desc_allocator_.Reallocate(desc_block, fence_vals_[frame_index_], size);
         }
 
-        GpuMemoryBlock AllocUploadMemBlock(uint32_t size_in_bytes)
+        GpuMemoryBlock AllocUploadMemBlock(uint32_t size_in_bytes, uint32_t alignment)
         {
-            return upload_mem_allocator_.Allocate(size_in_bytes);
+            return upload_mem_allocator_.Allocate(size_in_bytes, alignment);
         }
 
         void DeallocUploadMemBlock(GpuMemoryBlock&& mem_block)
@@ -413,14 +413,14 @@ namespace GoldenSun
             return upload_mem_allocator_.Deallocate(std::move(mem_block), fence_vals_[frame_index_]);
         }
 
-        void ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes)
+        void ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment)
         {
-            return upload_mem_allocator_.Reallocate(mem_block, fence_vals_[frame_index_], size_in_bytes);
+            return upload_mem_allocator_.Reallocate(mem_block, fence_vals_[frame_index_], size_in_bytes, alignment);
         }
 
-        GpuMemoryBlock AllocReadbackMemBlock(uint32_t size_in_bytes)
+        GpuMemoryBlock AllocReadbackMemBlock(uint32_t size_in_bytes, uint32_t alignment)
         {
-            return readback_mem_allocator_.Allocate(size_in_bytes);
+            return readback_mem_allocator_.Allocate(size_in_bytes, alignment);
         }
 
         void DeallocReadbackMemBlock(GpuMemoryBlock&& mem_block)
@@ -428,9 +428,9 @@ namespace GoldenSun
             return readback_mem_allocator_.Deallocate(std::move(mem_block), fence_vals_[frame_index_]);
         }
 
-        void ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes)
+        void ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment)
         {
-            return readback_mem_allocator_.Reallocate(mem_block, fence_vals_[frame_index_], size_in_bytes);
+            return readback_mem_allocator_.Reallocate(mem_block, fence_vals_[frame_index_], size_in_bytes, alignment);
         }
 
         void WaitForGpu()
@@ -765,9 +765,9 @@ namespace GoldenSun
         return impl_->ReallocSamplerDescBlock(desc_block, size);
     }
 
-    GpuMemoryBlock GpuSystem::AllocUploadMemBlock(uint32_t size_in_bytes)
+    GpuMemoryBlock GpuSystem::AllocUploadMemBlock(uint32_t size_in_bytes, uint32_t alignment)
     {
-        return impl_->AllocUploadMemBlock(size_in_bytes);
+        return impl_->AllocUploadMemBlock(size_in_bytes, alignment);
     }
 
     void GpuSystem::DeallocUploadMemBlock(GpuMemoryBlock&& mem_block)
@@ -775,14 +775,14 @@ namespace GoldenSun
         return impl_->DeallocUploadMemBlock(std::move(mem_block));
     }
 
-    void GpuSystem::ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes)
+    void GpuSystem::ReallocUploadMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment)
     {
-        return impl_->ReallocUploadMemBlock(mem_block, size_in_bytes);
+        return impl_->ReallocUploadMemBlock(mem_block, size_in_bytes, alignment);
     }
 
-    GpuMemoryBlock GpuSystem::AllocReadbackMemBlock(uint32_t size_in_bytes)
+    GpuMemoryBlock GpuSystem::AllocReadbackMemBlock(uint32_t size_in_bytes, uint32_t alignment)
     {
-        return impl_->AllocReadbackMemBlock(size_in_bytes);
+        return impl_->AllocReadbackMemBlock(size_in_bytes, alignment);
     }
 
     void GpuSystem::DeallocReadbackMemBlock(GpuMemoryBlock&& mem_block)
@@ -790,9 +790,9 @@ namespace GoldenSun
         return impl_->DeallocReadbackMemBlock(std::move(mem_block));
     }
 
-    void GpuSystem::ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes)
+    void GpuSystem::ReallocReadbackMemBlock(GpuMemoryBlock& mem_block, uint32_t size_in_bytes, uint32_t alignment)
     {
-        return impl_->ReallocReadbackMemBlock(mem_block, size_in_bytes);
+        return impl_->ReallocReadbackMemBlock(mem_block, size_in_bytes, alignment);
     }
 
     void GpuSystem::WaitForGpu()

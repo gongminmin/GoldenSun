@@ -197,7 +197,8 @@ namespace GoldenSun
             uint64_t required_size = 0;
             d3d12_device->GetCopyableFootprints(&desc_, mip, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-            auto upload_mem_block = gpu_system.AllocUploadMemBlock(static_cast<uint32_t>(required_size));
+            auto upload_mem_block =
+                gpu_system.AllocUploadMemBlock(static_cast<uint32_t>(required_size), GpuMemoryAllocator::TextureDataAligment);
 
             assert(row_size_in_bytes >= width * format_size);
 
@@ -252,7 +253,8 @@ namespace GoldenSun
             uint64_t required_size = 0;
             d3d12_device->GetCopyableFootprints(&desc_, mip, 1, 0, &layout, &num_row, &row_size_in_bytes, &required_size);
 
-            auto readback_mem_block = gpu_system.AllocReadbackMemBlock(static_cast<uint32_t>(required_size));
+            auto readback_mem_block =
+                gpu_system.AllocReadbackMemBlock(static_cast<uint32_t>(required_size), GpuMemoryAllocator::TextureDataAligment);
 
             D3D12_TEXTURE_COPY_LOCATION src;
             src.pResource = resource_.Get();
