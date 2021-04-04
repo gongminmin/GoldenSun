@@ -3,8 +3,6 @@
 #include <stdexcept>
 #include <string_view>
 
-#include <GoldenSun/Base.hpp>
-
 namespace GoldenSun
 {
     std::string CombineFileLine(std::string_view file, uint32_t line);

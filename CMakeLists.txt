@@ -60,6 +60,10 @@ target_include_directories(GoldenSun
     INTERFACE
         Include
 )
+target_link_libraries(GoldenSun
+    INTERFACE
+        GoldenSunEngine
+)
 
 set_target_properties(GoldenSun PROPERTIES FOLDER "Interface")
 

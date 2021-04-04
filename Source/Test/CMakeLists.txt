@@ -46,10 +46,8 @@ target_include_directories(${exe_name}
 
 target_link_libraries(${exe_name}
     PRIVATE
-        GoldenSunBase
-        GoldenSunEngine
+        GoldenSun
         GoldenSunDevHelper
-        d3d12 dxgi dxguid
         gtest
 )
 

@@ -30,9 +30,7 @@ set_target_properties(${exe_name} PROPERTIES
 
 target_link_libraries(${exe_name}
     PRIVATE
-        GoldenSunBase
-        GoldenSunEngine
+        GoldenSun
         GoldenSunDevHelper
-        d3d12 dxgi dxguid
 )
 add_dependencies(${exe_name} CopyAssets)

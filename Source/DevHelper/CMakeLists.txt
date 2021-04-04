@@ -37,8 +37,11 @@ set_target_properties(${lib_name} PROPERTIES
 )
 
 target_link_libraries(${lib_name}
-    PRIVATE
+    PUBLIC
         GoldenSunBase
+        d3d12 dxgi dxguid
+
+    PRIVATE
         GoldenSunEngine
         assimp stb
 )

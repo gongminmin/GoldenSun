@@ -65,8 +65,10 @@ add_library(${lib_name} STATIC
 
 GoldenSunAddPrecompiledHeader(${lib_name} "Source/pch.hpp")
 
+get_target_property(public_headers GoldenSun INTERFACE_INCLUDE_DIRECTORIES)
 target_include_directories(${lib_name}
     PUBLIC
+        ${public_headers}
         Include
 )
 
@@ -80,5 +82,4 @@ set_target_properties(${lib_name} PROPERTIES
 target_link_libraries(${lib_name}
     PUBLIC
         d3d12 dxgi dxguid
-        GoldenSun
 )

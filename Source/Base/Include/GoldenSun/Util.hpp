@@ -2,15 +2,11 @@
 
 #include <d3d12.h>
 
-#include <type_traits>
-#include <vector>
-
-#include <GoldenSun/Base.hpp>
-#include <GoldenSun/ComPtr.hpp>
-
 #define GOLDEN_SUN_UNREACHABLE(msg) __assume(false)
 
 #if __cpp_lib_to_underlying < 202102L
+#include <type_traits>
+
 namespace std
 {
     template <typename Enum>
