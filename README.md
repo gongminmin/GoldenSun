@@ -1,5 +1,6 @@
 # GoldenSun
 
+[![GitHub release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/gongminmin/GoldenSun/releases/latest)
 [![Build Status](https://gongminmin.visualstudio.com/GoldenSun/_apis/build/status/gongminmin.GoldenSun?branchName=main)](https://gongminmin.visualstudio.com/GoldenSun/_build/latest?definitionId=4&branchName=main)
 
 GoldenSun is a GPU path tracer. It uses hardware ray tracing APIs to do the tracing. As an experimental project, there is no release plan, nor related to any product.
