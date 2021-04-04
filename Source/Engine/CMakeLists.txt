@@ -9,15 +9,6 @@ set(source_files
     Source/Mesh.cpp
 )
 
-set(header_files
-    Include/GoldenSun/Camera.hpp
-    Include/GoldenSun/Engine.hpp
-    Include/GoldenSun/GoldenSun.hpp
-    Include/GoldenSun/Light.hpp
-    Include/GoldenSun/Material.hpp
-    Include/GoldenSun/Mesh.hpp
-)
-
 set(internal_header_files
     Source/AccelerationStructure.hpp
     Source/EngineInternal.hpp
@@ -29,12 +20,11 @@ set(shader_files
 )
 
 source_group("Source Files" FILES ${source_files})
-source_group("Header Files" FILES ${header_files})
 source_group("Internal Header Files" FILES ${internal_header_files})
 source_group("Shader Files" FILES ${shader_files})
 
 add_library(${lib_name} SHARED
-    ${source_files} ${header_files} ${internal_header_files} ${shader_files}
+    ${source_files} ${internal_header_files} ${shader_files}
 )
 
 GoldenSunAddShaderFile(Source/RayTracing.hlsl "lib" "")

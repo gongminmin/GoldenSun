@@ -43,9 +43,24 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Lib")
 
-add_subdirectory(External)
-add_subdirectory(Base)
-add_subdirectory(Engine)
-add_subdirectory(DevHelper)
-add_subdirectory(Samples)
-add_subdirectory(Test)
+set(header_files
+    Include/GoldenSun/Base.hpp
+    Include/GoldenSun/Camera.hpp
+    Include/GoldenSun/Engine.hpp
+    Include/GoldenSun/GoldenSun.hpp
+    Include/GoldenSun/Light.hpp
+    Include/GoldenSun/Material.hpp
+    Include/GoldenSun/Mesh.hpp
+)
+
+add_library(GoldenSun INTERFACE
+    ${header_files}
+)
+target_include_directories(GoldenSun
+    INTERFACE
+        Include
+)
+
+set_target_properties(GoldenSun PROPERTIES FOLDER "Interface")
+
+add_subdirectory(Source)

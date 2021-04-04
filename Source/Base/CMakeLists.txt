@@ -6,7 +6,6 @@ set(source_files
 )
 
 set(header_files
-    Include/GoldenSun/Base.hpp
     Include/GoldenSun/ComPtr.hpp
     Include/GoldenSun/ErrorHandling.hpp
     Include/GoldenSun/ImplPtr.hpp
@@ -81,4 +80,5 @@ set_target_properties(${lib_name} PROPERTIES
 target_link_libraries(${lib_name}
     PUBLIC
         d3d12 dxgi dxguid
+        GoldenSun
 )
