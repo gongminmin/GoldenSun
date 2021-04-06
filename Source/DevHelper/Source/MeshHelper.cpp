@@ -223,8 +223,9 @@ namespace
             }
             else if (AI_SUCCESS == aiGetMaterialFloat(mtl, AI_MATKEY_SHININESS, &ai_roughness))
             {
-                material.Roughness() =
-                    1 - log(std::max(1.0f, std::min(ai_roughness, PbrMaterial::MaxGlossiness))) / log(PbrMaterial::MaxGlossiness);
+                // It's a Blinn-Phong model. Clamp the shininess in [1, 8192]. Convert it to log space, then to roughness.
+                float constexpr MaxShininess = 8192;
+                material.Roughness() = 1 - log(std::max(1.0f, std::min(ai_roughness, MaxShininess))) / log(MaxShininess);
             }
             else
             {

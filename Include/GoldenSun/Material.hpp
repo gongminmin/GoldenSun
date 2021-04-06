@@ -15,8 +15,6 @@ namespace GoldenSun
         DISALLOW_COPY_AND_ASSIGN(PbrMaterial)
 
     public:
-        static float constexpr MaxGlossiness = 8192;
-
         enum class TextureSlot : uint32_t
         {
             Albedo,

@@ -135,9 +135,20 @@ float3 FresnelTerm(float3 f0, float l_dot_h)
     return f0 + (1 - f0) * exp2(-(5.55473f * l_dot_h + 6.98316f) * l_dot_h);
 }
 
-float3 BlinnPhongDistributionTerm(float n_dot_h, float glossiness)
+float3 GgxDistributionTerm(float n_dot_h, float roughness)
 {
-    return ((glossiness + 2) / 8) * exp((glossiness + 0.775f) * (max(n_dot_h, 0) - 1));
+    float const a2 = roughness * roughness;
+    float const d = ((n_dot_h * a2 - n_dot_h) * n_dot_h + 1);
+    return a2 / (d * d * PI);
+}
+
+float SchlickMaskingTerm(float n_dot_v, float n_dot_l, float roughness)
+{
+    float const k = roughness * roughness / 2;
+
+    float const g_v = 1 / (n_dot_v * (1 - k) + k);
+    float const g_l = 1 / (n_dot_l * (1 - k) + k);
+    return g_v * g_l / 4;
 }
 
 float3 DiffuseTerm(float3 c_diff)
@@ -145,11 +156,13 @@ float3 DiffuseTerm(float3 c_diff)
     return c_diff / PI;
 }
 
-float3 SpecularTerm(float3 c_spec, float3 light_vec, float3 halfway_vec, float3 normal, float glossiness)
+float3 SpecularTerm(float3 c_spec, float3 light_vec, float3 halfway_vec, float3 view_vec, float3 normal, float roughness)
 {
-    float const n_dot_h = dot(normal, halfway_vec);
-    float const l_dot_h = dot(light_vec, halfway_vec);
-    return BlinnPhongDistributionTerm(n_dot_h, glossiness) * FresnelTerm(c_spec, l_dot_h);
+    float const n_dot_v = dot(normal, view_vec);
+    float const n_dot_l = max(dot(normal, light_vec), 0);
+    float const n_dot_h = max(dot(normal, halfway_vec), 0);
+    float const l_dot_h = max(dot(light_vec, halfway_vec), 0);
+    return GgxDistributionTerm(n_dot_h, roughness) * SchlickMaskingTerm(n_dot_v, n_dot_l, roughness) * FresnelTerm(c_spec, l_dot_h);
 }
 
 float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
@@ -267,8 +280,7 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
     float2 metallic_roughness = metallic_roughness_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).zy;
     float const metallic = saturate(mtl.metallic * metallic_roughness.x);
 
-    float const MaxGlossiness = 8192;
-    float const glossiness = pow(MaxGlossiness, 1 - saturate(mtl.roughness * metallic_roughness.y));
+    float const roughness = saturate(mtl.roughness * metallic_roughness.y);
 
     float const occlusion = mtl.occlusion_strength * occlusion_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).x;
 
@@ -306,7 +318,7 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
             float3 const c_spec = SpecularColor(albedo, metallic);
 
             float3 const diffuse = DiffuseTerm(c_diff);
-            float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
+            float3 const specular = SpecularTerm(c_spec, light_dir, halfway, view_dir, normal, roughness);
 
             shading += attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * light.color;
         }
