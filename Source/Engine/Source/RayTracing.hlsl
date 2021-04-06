@@ -1,4 +1,5 @@
 static uint const MaxRayRecursionDepth = 3;
+static float const PI = 3.141592654f;
 
 // Ray types traced in this sample.
 namespace RayType
@@ -129,26 +130,26 @@ float3 SpecularColor(float3 albedo, float metallic)
     return lerp(0.04, albedo, metallic);
 }
 
-float3 FresnelTerm(float3 light_vec, float3 halfway_vec, float3 c_spec)
+float3 FresnelTerm(float3 f0, float l_dot_h)
 {
-    float e_n = saturate(dot(light_vec, halfway_vec));
-    return c_spec > 0 ? c_spec + (1 - c_spec) * exp2(-(5.55473f * e_n + 6.98316f) * e_n) : 0;
+    return f0 + (1 - f0) * exp2(-(5.55473f * l_dot_h + 6.98316f) * l_dot_h);
 }
 
-float SpecularNormalizeFactor(float glossiness)
+float3 BlinnPhongDistributionTerm(float n_dot_h, float glossiness)
 {
-    return (glossiness + 2) / 8;
+    return ((glossiness + 2) / 8) * exp((glossiness + 0.775f) * (max(n_dot_h, 0) - 1));
 }
 
-float3 DistributionTerm(float3 halfway_vec, float3 normal, float glossiness)
+float3 DiffuseTerm(float3 c_diff)
 {
-    return exp((glossiness + 0.775f) * (max(dot(halfway_vec, normal), 0) - 1));
+    return c_diff / PI;
 }
 
 float3 SpecularTerm(float3 c_spec, float3 light_vec, float3 halfway_vec, float3 normal, float glossiness)
 {
-    return SpecularNormalizeFactor(glossiness) * DistributionTerm(halfway_vec, normal, glossiness) *
-           FresnelTerm(light_vec, halfway_vec, c_spec);
+    float const n_dot_h = dot(normal, halfway_vec);
+    float const l_dot_h = dot(light_vec, halfway_vec);
+    return BlinnPhongDistributionTerm(n_dot_h, glossiness) * FresnelTerm(c_spec, l_dot_h);
 }
 
 float AttenuationTerm(float3 light_pos, float3 pos, float3 atten)
@@ -234,7 +235,7 @@ void RayGenShader()
     pos_ws /= pos_ws.w;
 
     Ray ray;
-    ray.origin = scene_cb.camera_pos.xyz;
+    ray.origin = scene_cb.camera_pos;
     ray.direction = normalize(pos_ws.xyz - ray.origin);
 
     uint curr_recursion_depth = 0;
@@ -274,6 +275,8 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
     float3 normal = normal_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz * 2 - 1;
     normal = normalize(mul(normal * float3(mtl.normal_scale.xx, 1), tangent_frame));
 
+    float3 const view_dir = normalize(scene_cb.camera_pos - position);
+
     float3 shading = 0;
 
     uint num_lights;
@@ -294,7 +297,7 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
 
         if (!in_shadow)
         {
-            float3 const halfway = normalize(light_dir + normal);
+            float3 const halfway = normalize(light_dir + view_dir);
             float const n_dot_l = max(dot(light_dir, normal), 0);
 
             float const attenuation = AttenuationTerm(light.position, position, light.falloff);
@@ -302,7 +305,7 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
             float3 const c_diff = DiffuseColor(albedo, metallic);
             float3 const c_spec = SpecularColor(albedo, metallic);
 
-            float3 const diffuse = c_diff;
+            float3 const diffuse = DiffuseTerm(c_diff);
             float3 const specular = SpecularTerm(c_spec, light_dir, halfway, normal, glossiness);
 
             shading += attenuation * occlusion * max((diffuse + specular) * n_dot_l, 0) * light.color;
@@ -310,7 +313,7 @@ float4 CalcLighting(float3 position, float3x3 tangent_frame, float2 tex_coord, u
     }
 
     float3 const ambient = ambient_factor * albedo;
-    float3 const emissive = emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
+    float3 const emissive = mtl.emissive * emissive_tex.SampleLevel(linear_wrap_sampler, tex_coord, 0).xyz;
 
     float3 color = ambient + emissive + shading;
     if (mtl.transparent && (opacity < 1.0f - 0.5f / 255.0f))

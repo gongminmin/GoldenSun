@@ -45,7 +45,7 @@ TEST_F(RayCastingTest, SingleObject)
     {
         PointLight light;
         light.Position() = {-2.0f, 1.8f, -3.0f};
-        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Color() = {1.0f * XM_PI, 0.8f * XM_PI, 0.0f * XM_PI};
         light.Falloff() = {1, 0, 0};
         light.Shadowing() = false;
 
@@ -118,7 +118,7 @@ TEST_F(RayCastingTest, MultipleObjects)
     {
         PointLight light;
         light.Position() = {2.0f, 1.8f, -3.0f};
-        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Color() = {1.0f * XM_PI, 0.8f * XM_PI, 0.0f * XM_PI};
         light.Falloff() = {1, 0, 0};
         light.Shadowing() = false;
 
@@ -213,7 +213,7 @@ TEST_F(RayCastingTest, Instancing)
     {
         PointLight light;
         light.Position() = {2.0f, 1.8f, -3.0f};
-        light.Color() = {1.0f, 0.8f, 0.0f};
+        light.Color() = {1.0f * XM_PI, 0.8f * XM_PI, 0.0f * XM_PI};
         light.Falloff() = {1, 0, 0};
         light.Shadowing() = false;
 
@@ -315,7 +315,7 @@ TEST_F(RayCastingTest, Mesh)
     {
         PointLight light;
         light.Position() = {2.0f, 0.0f, -2.0f};
-        light.Color() = {15.0f, 18.0f, 15.0f};
+        light.Color() = {15.0f * XM_PI, 18.0f * XM_PI, 15.0f * XM_PI};
         light.Falloff() = {1, 0, 1};
         light.Shadowing() = false;
 
@@ -369,13 +369,13 @@ TEST_F(RayCastingTest, MeshShadowed)
 
         auto& light0 = lights.emplace_back();
         light0.Position() = {2.0f, 0.0f, -2.0f};
-        light0.Color() = {15.0f, 18.0f, 15.0f};
+        light0.Color() = {15.0f * XM_PI, 18.0f * XM_PI, 15.0f * XM_PI};
         light0.Falloff() = {1, 0, 1};
         light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
         light1.Position() = {-2.0f, 1.8f, -3.0f};
-        light1.Color() = {15.0f, 4.5f, 4.5f};
+        light1.Color() = {15.0f * XM_PI, 4.5f * XM_PI, 4.5f * XM_PI};
         light1.Falloff() = {1, 0, 1};
         light1.Shadowing() = false;
 
@@ -429,13 +429,13 @@ TEST_F(RayCastingTest, Transparent)
 
         auto& light0 = lights.emplace_back();
         light0.Position() = {2.0f, 0.0f, -2.0f};
-        light0.Color() = {8.0f, 10.0f, 8.0f};
+        light0.Color() = {8.0f * XM_PI, 10.0f * XM_PI, 8.0f * XM_PI};
         light0.Falloff() = {1, 0, 1};
         light0.Shadowing() = true;
 
         auto& light1 = lights.emplace_back();
         light1.Position() = {-2.0f, 1.5f, -3.0f};
-        light1.Color() = {12.0f, 2.5f, 2.5f};
+        light1.Color() = {12.0f * XM_PI, 2.5f * XM_PI, 2.5f * XM_PI};
         light1.Falloff() = {1, 0, 1};
         light1.Shadowing() = true;
 
