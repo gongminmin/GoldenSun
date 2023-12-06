@@ -30,7 +30,7 @@ namespace GoldenSun
         {
         }
 
-        operator GUID const&() const noexcept
+        operator GUID const &() const noexcept
         {
             return reinterpret_cast<GUID const&>(*this);
         }

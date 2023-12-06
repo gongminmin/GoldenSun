@@ -6,11 +6,11 @@ resources:
   fetchDepth: 1
 
 stages:
-- stage: Build
+- stage: CodeFormatting
   jobs:
   - job: CodeFormatting
     pool:
-      vmImage: Ubuntu-18.04
+      vmImage: Ubuntu-20.04
 
     variables:
       CC: gcc
@@ -30,6 +30,9 @@ stages:
       failOnStderr: true
       displayName: 'Clang-Format'
 
+- stage: Build
+  condition: succeeded('CodeFormatting')
+  jobs:
   - job: Build
     strategy:
       matrix:
