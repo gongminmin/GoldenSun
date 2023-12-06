@@ -82,38 +82,78 @@ class BuildInfo:
 		if compiler is None:
 			if project is None:
 				if self.is_windows:
-					if self.FindVS2019Folder(program_files_folder) is not None:
+					if self.FindVS2022Folder(program_files_folder) is not None:
+						project = "vs2022"
+						compiler = "vc143"
+					elif self.FindVS2019Folder(program_files_folder) is not None:
 						project = "vs2019"
 						compiler = "vc142"
 				else:
 					LogError("Unsupported target platform %s.\n" % target_platform)
 			else:
-				if project == "vs2019":
+				if project == "vs2022":
+					compiler = "vc143"
+				elif project == "vs2019":
 					compiler = "vc142"
 
 		if project is None:
-			if "vc142" == compiler:
+			if "vc143" == compiler:
+				project = "vs2022"
+			elif "vc142" == compiler:
 				project = "vs2019"
 			else:
 				project = "make"
 
 		if self.is_windows:
+			if "vc143" == compiler:
+				if project == "vs2022":
+					try_folder = self.FindVS2022Folder(program_files_folder)
+					if try_folder is not None:
+						compiler_root = try_folder
+						vcvarsall_path = "VCVARSALL.BAT"
+						vcvarsall_options = ""
+					else:
+						LogError("Could NOT find vc143 compiler toolset for VS2022.\n")
+				else:
+					LogError("Could NOT find vc143 compiler.\n")
 			if "vc142" == compiler:
-				try_folder = self.FindVS2019Folder(program_files_folder)
-				if try_folder is not None:
-					compiler_root = try_folder
-					vcvarsall_path = "VCVARSALL.BAT"
-					vcvarsall_options = ""
+				if project == "vs2022":
+					try_folder = self.FindVS2022Folder(program_files_folder)
+					if try_folder is not None:
+						compiler_root = try_folder
+						vcvarsall_path = "VCVARSALL.BAT"
+						vcvarsall_options = "-vcvars_ver=14.2"
+					else:
+						LogError("Could NOT find vc142 compiler toolset for VS2022.\n")
+				elif project == "vs2019":
+					try_folder = self.FindVS2019Folder(program_files_folder)
+					if try_folder is not None:
+						compiler_root = try_folder
+						vcvarsall_path = "VCVARSALL.BAT"
+						vcvarsall_options = ""
+					else:
+						LogError("Could NOT find vc142 compiler toolset for VS2019.\n")
 				else:
-					LogError("Could NOT find vc142 compiler toolset for VS2019.\n")
+					LogError("Could NOT find vc142 compiler.\n")
 			elif "clangcl" == compiler:
-				try_folder = self.FindVS2019Folder(program_files_folder)
-				if try_folder is not None:
-					compiler_root = try_folder
-					vcvarsall_path = "VCVARSALL.BAT"
-					vcvarsall_options = ""
+				if project == "vs2022":
+					try_folder = self.FindVS2022Folder(program_files_folder)
+					if try_folder is not None:
+						compiler_root = try_folder
+						vcvarsall_path = "VCVARSALL.BAT"
+						vcvarsall_options = ""
+					else:
+						LogError("Could NOT find clang-cl compiler toolset for VS2022.\n")
+				elif project == "vs2019":
+					try_folder = self.FindVS2019Folder(program_files_folder)
+					if try_folder is not None:
+						compiler_root = try_folder
+						vcvarsall_path = "VCVARSALL.BAT"
+						vcvarsall_options = ""
+					else:
+						LogError("Could NOT find clang-cl compiler toolset for VS2019.\n")
 				else:
-					LogError("Could NOT find clang-cl compiler toolset for VS2019.\n")
+					LogError("Could NOT find clang-cl compiler.\n")
 		else:
 			compiler_root = ""
 
@@ -125,7 +165,23 @@ class BuildInfo:
 
 		multi_config = False
 		compilers = []
-		if "vs2019" == project:
+		if "vs2022" == project:
+			self.vs_version = 17
+			if "vc143" == compiler:
+				compiler_name = "vc"
+				compiler_version = 143
+			elif "vc142" == compiler:
+				compiler_name = "vc"
+				compiler_version = 142
+			elif "clangcl" == compiler:
+				compiler_name = "clangcl"
+				compiler_version = self.RetrieveClangVersion(compiler_root + "../../Tools/Llvm/bin/")
+			else:
+				LogError("Wrong combination of project %s and compiler %s.\n" % (project_type, compiler))
+			multi_config = True
+			for arch in archs:
+				compilers.append(CompilerInfo(self, arch, "Visual Studio 17", compiler_root, vcvarsall_path, vcvarsall_options))
+		elif "vs2019" == project:
 			self.vs_version = 16
 			if "vc142" == compiler:
 				compiler_name = "vc"
@@ -146,7 +202,12 @@ class BuildInfo:
 					gen_name = "MinGW Makefiles"
 				else:
 					gen_name = "Unix Makefiles"
-			if "vc142" == compiler:
+			if "vc143" == compiler:
+				compiler_name = "vc"
+				compiler_version = 143
+				for arch in archs:
+					compilers.append(CompilerInfo(self, arch, gen_name, compiler_root, vcvarsall_path, vcvarsall_options))
+			elif "vc142" == compiler:
 				compiler_name = "vc"
 				compiler_version = 142
 				for arch in archs:
@@ -209,13 +270,16 @@ class BuildInfo:
 			if "ProgramFiles(x86)" in env:
 				program_files_folder = env["ProgramFiles(x86)"]
 			else:
-				program_files_folder = "C:\Program Files (x86)"
+				program_files_folder = "C:\\Program Files (x86)"
 		else:
 			if "ProgramFiles" in env:
 				program_files_folder = env["ProgramFiles"]
 			else:
-				program_files_folder = "C:\Program Files"
+				program_files_folder = "C:\\Program Files"
 		return program_files_folder
+
+	def FindVS2022Folder(self, program_files_folder):
+		return self.FindVS2017PlusFolder(program_files_folder, 17, "2022")
 
 	def FindVS2019Folder(self, program_files_folder):
 		return self.FindVS2017PlusFolder(program_files_folder, 16, "2019")
@@ -330,8 +394,6 @@ def BuildProjects(name, build_path, build_info, compiler_info, project_list, add
 	if build_info.multi_config:
 		if build_info.project_type.startswith("vs"):
 			additional_options += " -A %s" % vc_arch
-			if build_info.compiler_name == "clangcl":
-				additional_options += " -DClangCL_Path=\"" + compiler_info.compiler_root + "../../Tools/Llvm/bin/\""
 
 		build_dir = "%s/Build/%s" % (build_path, build_info.GetBuildDir(compiler_info.arch))
 

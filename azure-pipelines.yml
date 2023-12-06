@@ -33,6 +33,20 @@ stages:
   - job: Build
     strategy:
       matrix:
+        Windows_vc143_Debug:
+          vmImage: windows-2022
+          project: vs2022
+          compiler: vc143
+          configuration: Debug
+          id: 'vc143_win_$(platform)_$(configuration)'
+
+        Windows_vc143_Release:
+          vmImage: windows-2022
+          project: vs2022
+          compiler: vc143
+          configuration: Release
+          id: 'vc143_win_$(platform)_$(configuration)'
+
         Windows_vc142_Debug:
           vmImage: windows-2019
           project: vs2019
